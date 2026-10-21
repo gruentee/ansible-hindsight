@@ -1,0 +1,51 @@
+---
+# External Database scenario (#14): a pgvector PostgreSQL container is a second platform
+# on a shared docker network; the role is pointed at it through hindsight_database_url.
+driver:
+  name: docker
+# The nested Podman container cannot resolve docker network names, so the database
+# gets a fixed address on a dedicated network.
+platforms:
+  - name: extdb-ubuntu
+    image: ubuntu:26.04
+    dockerfile: Dockerfile.j2
+    pre_build_image: false
+    privileged: true
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+    networks:
+      - name: hindsight-extdb-net
+    groups:
+      - target
+  - name: extdb-pgvector
+    image: pgvector/pgvector:pg16
+    pre_build_image: true
+    command: ""
+    docker_networks:
+      - name: hindsight-extdb-net
+        ipam_config:
+          - subnet: 172.30.88.0/24
+    env:
+      POSTGRES_USER: hindsight
+      POSTGRES_PASSWORD: molecule-db-password
+      POSTGRES_DB: hindsight
+    networks:
+      - name: hindsight-extdb-net
+        ipv4_address: 172.30.88.10
+    groups:
+      - database
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      target:
+        hindsight_llm_provider: none
+        hindsight_min_free_disk_mb: 0
+        hindsight_database_url: postgresql://hindsight:molecule-db-password@172.30.88.10:5432/hindsight
+verifier:
+  name: ansible
