@@ -33,6 +33,32 @@
           - "(hindsight_verify_mounts.stdout | from_json)[0].Mounts | map(attribute='Type') | list == ['bind']"
           - "(hindsight_verify_mounts.stdout | from_json)[0].Mounts[0].Source == host_path"
 
+    - name: Read the unit file
+      ansible.builtin.slurp:
+        src: /etc/systemd/system/hindsight.service
+      register: hindsight_verify_unit
+
+    - name: The host path is mounted with the private SELinux label
+      ansible.builtin.assert:
+        that: "'/srv/hindsight-data:/home/hindsight/.pg0:Z' in (hindsight_verify_unit.content | b64decode)"
+
+    - name: Stat the SELinux config
+      ansible.builtin.stat:
+        path: /etc/selinux/config
+      register: hindsight_verify_selinux_config
+
+    - name: Read the SELinux config
+      ansible.builtin.slurp:
+        src: /etc/selinux/config
+      register: hindsight_verify_selinux
+      when: hindsight_verify_selinux_config.stat.exists
+
+    # The role must not change the SELinux mode. Where the image ships a config, it stays enforcing.
+    - name: The role left the SELinux mode alone
+      ansible.builtin.assert:
+        that: "(hindsight_verify_selinux.content | b64decode) is search('(?m)^SELINUX=enforcing')"
+      when: hindsight_verify_selinux_config.stat.exists
+
     - name: Write a marker into the data directory from inside the container
       ansible.builtin.command: podman exec hindsight touch /home/hindsight/.pg0/persist-marker
       changed_when: false
