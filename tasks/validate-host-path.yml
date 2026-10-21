@@ -1,0 +1,8 @@
+---
+- name: Validate the data host path
+  ansible.builtin.assert:
+    that: hindsight_data_host_path == '' or hindsight_data_host_path is match('/')
+    fail_msg: >-
+      hindsight_data_host_path must be an absolute path (starting with /) or empty,
+      got "{{ hindsight_data_host_path }}".
+    quiet: true

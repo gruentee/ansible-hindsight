@@ -1,4 +1,8 @@
 ---
+- name: Validate the data host path
+  ansible.builtin.import_tasks:
+    file: validate-host-path.yml
+
 - name: Install the container runtime and the Hindsight image
   ansible.builtin.import_tasks:
     file: install.yml
@@ -6,6 +10,10 @@
 - name: Write the Hindsight configuration
   ansible.builtin.import_tasks:
     file: config.yml
+
+- name: Prepare the host data directory
+  ansible.builtin.import_tasks:
+    file: data-dir.yml
 
 - name: Run Hindsight under systemd
   ansible.builtin.import_tasks:
