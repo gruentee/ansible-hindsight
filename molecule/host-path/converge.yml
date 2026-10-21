@@ -1,0 +1,25 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: A relative host path is rejected by validation
+      block:
+        - name: Apply the role with a relative host path
+          ansible.builtin.include_role:
+            name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+          vars:
+            hindsight_data_host_path: relative/data
+        - name: Fail when the role accepted the relative path
+          ansible.builtin.fail:
+            msg: The role accepted a relative hindsight_data_host_path.
+      rescue:
+        - name: The failure names the variable
+          ansible.builtin.assert:
+            that: "'hindsight_data_host_path' in ansible_failed_result.msg"
+            fail_msg: "Unexpected failure: {{ ansible_failed_result.msg | default('') }}"
+
+    # The checkout directory is not named after the Galaxy role, so include it by path.
+    - name: Apply the hindsight role with the host path
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

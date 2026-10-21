@@ -17,7 +17,7 @@ ExecStart=/usr/bin/podman run --rm --replace \
   -p {{ hindsight_bind_address }}:{{ hindsight_api_port }}:{{ __hindsight_api_container_port }} \
   -p {{ hindsight_bind_address }}:{{ hindsight_cp_port }}:{{ __hindsight_cp_container_port }} \
 {% if hindsight_database_url == '' %}
-  -v {{ hindsight_data_volume }}:{{ __hindsight_data_mount_path }} \
+  -v {% if hindsight_data_host_path %}{{ hindsight_data_host_path }}:{{ __hindsight_data_mount_path }}:Z{% else %}{{ hindsight_data_volume }}:{{ __hindsight_data_mount_path }}{% endif %} \
 {% endif %}
   {{ __hindsight_image_ref }}
 ExecStop=/usr/bin/podman stop --ignore -t {{ hindsight_stop_timeout }} {{ __hindsight_container_name }}

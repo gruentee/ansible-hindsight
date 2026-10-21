@@ -11,6 +11,10 @@
   ansible.builtin.import_tasks:
     file: config.yml
 
+- name: Prepare the host data directory
+  ansible.builtin.import_tasks:
+    file: data-dir.yml
+
 - name: Run Hindsight under systemd
   ansible.builtin.import_tasks:
     file: service.yml
