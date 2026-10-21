@@ -1,0 +1,23 @@
+---
+# Disk preflight: runs only when the image has to be pulled, and before the pull.
+- name: Find where Podman stores images
+  ansible.builtin.command: podman info --format '{% raw %}{{ .Store.GraphRoot }}{% endraw %}'
+  register: __hindsight_graph_root
+  changed_when: false
+  check_mode: false
+
+- name: Measure the free space where Podman stores images
+  ansible.builtin.command: df --output=avail --block-size=1M {{ __hindsight_graph_root.stdout | trim | quote }}
+  register: __hindsight_free_disk
+  changed_when: false
+  check_mode: false
+
+- name: Require enough free disk space for the image
+  ansible.builtin.assert:
+    that: (__hindsight_free_disk.stdout_lines[-1] | trim | int) >= (hindsight_min_free_disk_mb | int)
+    quiet: true
+    fail_msg: >-
+      Not enough free disk space for the {{ hindsight_image_variant }} image {{ __hindsight_image_ref }} -
+      {{ __hindsight_free_disk.stdout_lines[-1] | trim }} MB free in {{ __hindsight_graph_root.stdout | trim }},
+      {{ hindsight_min_free_disk_mb }} MB required. Free up space, or lower hindsight_min_free_disk_mb
+      (0 disables this check).

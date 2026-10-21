@@ -1,0 +1,32 @@
+---
+# Preflight scenario (#18): the disk check runs before the pull. No real image is pulled:
+# the failure cases stop at the check, and the pass cases use a tag that does not exist.
+driver:
+  name: docker
+platforms:
+  - name: ubuntu-2604-preflight
+    image: ubuntu:26.04
+    dockerfile: Dockerfile.j2
+    pre_build_image: false
+    privileged: true
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        hindsight_llm_provider: none
+        # A tag that does not exist, so a pull that is reached fails cheaply.
+        hindsight_image_tag: 0.0.0-molecule-nonexistent
+scenario:
+  test_sequence:
+    - destroy
+    - create
+    - converge
+    - destroy
