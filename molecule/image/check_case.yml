@@ -1,0 +1,11 @@
+---
+- name: Load the role variables for the case
+  ansible.builtin.include_tasks:
+    file: load_role.yml
+  vars: "{{ {'hindsight_llm_provider': 'none'} | combine(case.vars) }}"
+
+- name: "Case {{ case.title }}"
+  ansible.builtin.assert:
+    that:
+      - __hindsight_image_ref == case.ref
+      - hindsight_min_free_disk_mb | int == case.min_mb

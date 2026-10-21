@@ -1,0 +1,38 @@
+---
+- name: Verify
+  hosts: target
+  gather_facts: false
+  tasks:
+    - name: Env file points the service at the External Database
+      ansible.builtin.slurp:
+        src: /etc/hindsight/hindsight.env
+      register: hindsight_verify_env
+      no_log: true
+
+    - name: Database URL is in the env file
+      ansible.builtin.assert:
+        that: "'HINDSIGHT_API_DATABASE_URL=postgresql://hindsight:' in (hindsight_verify_env.content | b64decode)"
+
+    - name: Inspect the running container mounts
+      ansible.builtin.command: podman inspect hindsight
+      register: hindsight_verify_mounts
+      changed_when: false
+
+    - name: The container has no data volume mounted
+      ansible.builtin.assert:
+        that: (hindsight_verify_mounts.stdout | from_json | first).Mounts | length == 0
+
+    - name: List Podman volumes
+      ansible.builtin.command: podman volume ls --quiet
+      register: hindsight_verify_volumes
+      changed_when: false
+
+    - name: The Embedded Database data volume does not exist
+      ansible.builtin.assert:
+        that:
+          - "'hindsight-data' not in hindsight_verify_volumes.stdout_lines"
+
+    - name: Readiness endpoint answers against the External Database
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8888/health/ready
+        status_code: 200

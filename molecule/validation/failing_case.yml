@@ -1,0 +1,18 @@
+---
+- name: "Case {{ case.title }}"
+  block:
+    - name: Run the validation tasks
+      ansible.builtin.include_tasks:
+        file: run_validation.yml
+
+    - name: The run must not get past validation
+      ansible.builtin.fail:
+        msg: "Case '{{ case.title }}' passed validation but should have failed"
+  rescue:
+    - name: The failure names the offending variable
+      ansible.builtin.assert:
+        that:
+          - ansible_failed_result.msg is defined
+          - case.names in ansible_failed_result.msg
+          - "'should have failed' not in ansible_failed_result.msg"
+        fail_msg: "Case '{{ case.title }}' failed without naming {{ case.names }}: {{ ansible_failed_result.msg | default('') }}"

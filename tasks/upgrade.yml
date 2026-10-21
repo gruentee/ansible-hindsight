@@ -1,0 +1,41 @@
+---
+# Upgrade detection and the downgrade guard. Runs before the pull.
+# Sets __hindsight_upgrade (an installed unit runs a different image reference than requested),
+# __hindsight_old_ref (the reference the installed unit runs) and the bare old and new versions.
+- name: Check whether a Hindsight unit is already installed
+  ansible.builtin.stat:
+    path: /etc/systemd/system/{{ __hindsight_service_name }}.service
+  register: __hindsight_unit_stat
+
+- name: Read the installed Hindsight unit
+  ansible.builtin.slurp:
+    src: /etc/systemd/system/{{ __hindsight_service_name }}.service
+  register: __hindsight_unit_slurp
+  when: __hindsight_unit_stat.stat.exists
+
+- name: Work out the image reference the installed unit runs
+  ansible.builtin.set_fact:
+    __hindsight_old_ref: >-
+      {{ ((__hindsight_unit_slurp.content | b64decode)
+         | regex_findall('(?m)^\s*(' ~ (hindsight_image | regex_escape) ~ ':\S+)\s*$')
+         | first | default('')) if __hindsight_unit_stat.stat.exists else '' }}
+
+- name: Flag an upgrade when the requested image differs from the installed one
+  ansible.builtin.set_fact:
+    __hindsight_upgrade: "{{ __hindsight_old_ref | length > 0 and __hindsight_old_ref != __hindsight_image_ref }}"
+    __hindsight_old_version: "{{ __hindsight_old_ref | regex_replace('^.*:', '') | regex_replace('-slim$', '') }}"
+    __hindsight_new_version: "{{ hindsight_image_tag | string | regex_replace('-slim$', '') }}"
+
+- name: Refuse a downgrade unless it is explicitly allowed
+  ansible.builtin.assert:
+    that: not (__hindsight_new_version is version(__hindsight_old_version, '<'))
+    quiet: true
+    fail_msg: >-
+      hindsight_image_tag {{ hindsight_image_tag }} is older than the installed version {{ __hindsight_old_version }}.
+      Migrations are not reversible and upstream documents no downgrade path. Set hindsight_allow_downgrade: true
+      to proceed anyway, ideally after restoring a backup from {{ hindsight_backup_dir }}.
+  when:
+    - __hindsight_upgrade | bool
+    - not (hindsight_allow_downgrade | bool)
+    - __hindsight_old_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+    - __hindsight_new_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')

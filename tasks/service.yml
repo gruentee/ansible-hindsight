@@ -42,7 +42,14 @@
       Hindsight did not answer http://{{ hindsight_bind_address }}:{{ hindsight_api_port }}/health/ready
       within {{ hindsight_start_timeout }} seconds. Inspect it with:
       journalctl -u {{ __hindsight_service_name }}
+      {% if __hindsight_backup_path is defined %}
+      The data was backed up before the upgrade to {{ __hindsight_backup_path }}; there is no automatic rollback.
+      {% endif %}
   when:
     - hindsight_service_state == 'started'
     - not ansible_check_mode
     - __hindsight_ready.status | default(0) != 200
+
+- name: Remove the previous Hindsight image after an upgrade
+  ansible.builtin.include_tasks:
+    file: prune.yml

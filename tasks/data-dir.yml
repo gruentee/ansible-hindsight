@@ -7,4 +7,6 @@
     owner: "{{ __hindsight_container_uid }}"
     group: "{{ __hindsight_container_gid }}"
     mode: "0755"
-  when: hindsight_data_host_path | length > 0
+  when:
+    - hindsight_database_url == ''
+    - hindsight_data_host_path | length > 0

@@ -1,7 +1,7 @@
 ---
-- name: Validate the data host path
+- name: Validate the role input
   ansible.builtin.import_tasks:
-    file: validate-host-path.yml
+    file: validate.yml
 
 - name: Install the container runtime and the Hindsight image
   ansible.builtin.import_tasks:
