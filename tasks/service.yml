@@ -1,0 +1,48 @@
+---
+- name: Install the Hindsight systemd unit
+  ansible.builtin.template:
+    src: hindsight.service.j2
+    dest: /etc/systemd/system/{{ __hindsight_service_name }}.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: __hindsight_unit
+  notify: Restart hindsight
+
+- name: Reload systemd when the unit changed
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: __hindsight_unit is changed
+
+# A restart on a stopped service starts it, so a first run does not start the service twice.
+- name: Apply pending restarts before the final state is enforced
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the Hindsight service
+  ansible.builtin.systemd:
+    name: "{{ __hindsight_service_name }}"
+    enabled: "{{ hindsight_service_enabled | bool }}"
+    state: "{{ hindsight_service_state }}"
+
+- name: Wait for the Hindsight Server to become ready
+  ansible.builtin.uri:
+    url: "http://{{ hindsight_bind_address }}:{{ hindsight_api_port }}/health/ready"
+    status_code: 200
+  register: __hindsight_ready
+  until: __hindsight_ready.status | default(0) == 200
+  retries: "{{ ((hindsight_start_timeout | int) / 5) | round(0, 'ceil') | int }}"
+  delay: 5
+  changed_when: false
+  failed_when: false
+  when: hindsight_service_state == 'started' and not ansible_check_mode
+
+- name: Fail when the Hindsight Server did not become ready
+  ansible.builtin.fail:
+    msg: >-
+      Hindsight did not answer http://{{ hindsight_bind_address }}:{{ hindsight_api_port }}/health/ready
+      within {{ hindsight_start_timeout }} seconds. Inspect it with:
+      journalctl -u {{ __hindsight_service_name }}
+  when:
+    - hindsight_service_state == 'started'
+    - not ansible_check_mode
+    - __hindsight_ready.status | default(0) != 200
