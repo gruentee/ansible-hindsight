@@ -23,6 +23,11 @@
     name: "{{ __hindsight_service_name }}"
     enabled: "{{ hindsight_service_enabled | bool }}"
     state: "{{ hindsight_service_state }}"
+  register: __hindsight_enable
+  # In check mode the unit file of a fresh host does not exist yet.
+  failed_when:
+    - __hindsight_enable is failed
+    - not (ansible_check_mode and 'Could not find the requested service' in (__hindsight_enable.msg | default('')))
 
 - name: Wait for the Hindsight Server to become ready
   ansible.builtin.uri:

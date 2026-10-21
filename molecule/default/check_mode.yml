@@ -1,0 +1,72 @@
+---
+# Check-mode guarantees (#17). Runs as the scenario side_effect step before the first converge
+# (fresh platform) and again after the idempotence run (converged platform).
+# Fresh platform: check mode must not fail and must not create a unit, env file, volume or image.
+# Converged platform: check mode must report zero changes.
+# The role runs in a nested ansible-playbook --check of converge.yml so the recap shows the change count.
+- name: Check mode
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Stat the unit file before check mode
+      ansible.builtin.stat:
+        path: /etc/systemd/system/hindsight.service
+      register: hindsight_check_unit_before
+
+    - name: Run the role in check mode
+      ansible.builtin.command: >-
+        {{ ansible_playbook_python | dirname }}/ansible-playbook --check
+        -i {{ inventory_file | quote }} --limit {{ inventory_hostname | quote }}
+        {{ playbook_dir }}/converge.yml
+      delegate_to: localhost
+      register: hindsight_check_run
+      changed_when: false
+      check_mode: false
+      environment:
+        ANSIBLE_NOCOLOR: "true"
+        ANSIBLE_FORCE_COLOR: "false"
+
+    # Colour codes and line wrapping are stripped before the recap line is picked out.
+    - name: Read the recap for this host
+      ansible.builtin.set_fact:
+        hindsight_check_recap: >-
+          {{ hindsight_check_run.stdout
+             | regex_replace('\x1b\[[0-9;]*m', '')
+             | regex_replace('\s+', ' ')
+             | regex_search(inventory_hostname | regex_escape ~ ' : ok=[0-9]+ changed=[0-9]+ unreachable=[0-9]+ failed=[0-9]+') }}
+
+    - name: Check mode reports no failure
+      ansible.builtin.assert:
+        that:
+          - hindsight_check_recap is search('failed=0$')
+          - hindsight_check_recap is search(' unreachable=0 ')
+        quiet: true
+
+    - name: Check mode on a converged platform reports zero changes
+      ansible.builtin.assert:
+        that: hindsight_check_recap is search(' changed=0 ')
+        fail_msg: "Check mode reported changes on a converged platform: {{ hindsight_check_recap }}"
+        quiet: true
+      when: hindsight_check_unit_before.stat.exists
+
+    - name: Look for Podman
+      ansible.builtin.command: sh -c 'command -v podman || true'
+      register: hindsight_check_podman
+      changed_when: false
+
+    - name: Stat the env file and the unit file after check mode
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/hindsight/hindsight.env
+        - /etc/systemd/system/hindsight.service
+      register: hindsight_check_files
+
+    - name: Check mode on a fresh platform installs and creates nothing
+      ansible.builtin.assert:
+        that:
+          - hindsight_check_podman.stdout | length == 0
+          - hindsight_check_files.results | selectattr('stat.exists') | list | length == 0
+        fail_msg: Check mode installed Podman or created the env file or the unit on a fresh platform.
+        quiet: true
+      when: hindsight_check_unit_before.stat.exists is false  # noqa: key-order[task]
