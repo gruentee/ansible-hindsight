@@ -1,7 +1,7 @@
 ---
 # Public variable contract for the hindsight role.
-# Every public variable has the hindsight_ prefix and is documented here and in the README.
-# Variables marked "secret" must come from Ansible Vault and are never printed.
+# Every public variable has the hindsight_ prefix and is documented in this file.
+# Variables marked "secret" must come from Ansible Vault; tasks that use them must set no_log.
 
 # --- LLM ---------------------------------------------------------------------
 

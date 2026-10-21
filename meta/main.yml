@@ -13,6 +13,7 @@ galaxy_info:
     - name: Ubuntu
       versions:
         - jammy
+        - resolute
     - name: EL
       versions:
         - "9"
