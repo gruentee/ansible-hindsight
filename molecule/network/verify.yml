@@ -1,0 +1,108 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Readiness endpoint answers on the configured address and port
+      ansible.builtin.uri:
+        url: http://127.0.0.2:18888/health/ready
+        status_code: 200
+
+    - name: Probe the default and mismatched addresses
+      ansible.builtin.uri:
+        url: "{{ item }}"
+        timeout: 5
+      loop:
+        - http://127.0.0.1:8888/health/ready
+        - http://127.0.0.1:18888/health/ready
+        - http://127.0.0.2:8888/health/ready
+        - http://127.0.0.1:9999/
+        - http://127.0.0.1:19999/
+      register: hindsight_verify_negative
+      failed_when: hindsight_verify_negative.status | default(-1) != -1
+      changed_when: false
+
+    - name: Control Plane port is published on the configured address
+      ansible.builtin.command: podman port hindsight
+      register: hindsight_verify_ports
+      changed_when: false
+
+    - name: Published ports match the configuration
+      ansible.builtin.assert:
+        that:
+          - "'8888/tcp -> 127.0.0.2:18888' in hindsight_verify_ports.stdout"
+          - "'9999/tcp -> 127.0.0.2:19999' in hindsight_verify_ports.stdout"
+
+    - name: Read the worker id from the container (before)
+      ansible.builtin.command: podman exec hindsight printenv HINDSIGHT_API_WORKER_ID
+      register: hindsight_verify_worker_before
+      changed_when: false
+
+    - name: Read the log level from the container (before)
+      ansible.builtin.command: podman exec hindsight printenv HINDSIGHT_API_LOG_LEVEL
+      register: hindsight_verify_level_before
+      changed_when: false
+
+    - name: Access key in the container matches the configured value (before)
+      ansible.builtin.command:
+        argv:
+          - podman
+          - exec
+          - hindsight
+          - sh
+          - -c
+          - test "$HINDSIGHT_CP_ACCESS_KEY" = molecule-secret-sentinel
+      changed_when: false
+
+    - name: Access key, pass-through entry and worker id reach the container
+      ansible.builtin.assert:
+        that:
+          - hindsight_verify_worker_before.stdout == inventory_hostname
+          - hindsight_verify_level_before.stdout == 'debug'
+
+    - name: Read the container id before recreation
+      ansible.builtin.command: podman inspect --format {{ '{{.Id}}' }} hindsight
+      register: hindsight_verify_id_before
+      changed_when: false
+
+    - name: Apply the role without an access key
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+      vars:
+        hindsight_cp_access_key: ""
+
+    - name: Read the container id after recreation
+      ansible.builtin.command: podman inspect --format {{ '{{.Id}}' }} hindsight
+      register: hindsight_verify_id_after
+      changed_when: false
+
+    - name: Read the worker id from the container (after)
+      ansible.builtin.command: podman exec hindsight printenv HINDSIGHT_API_WORKER_ID
+      register: hindsight_verify_worker_after
+      changed_when: false
+
+    - name: Read the log level from the container (after)
+      ansible.builtin.command: podman exec hindsight printenv HINDSIGHT_API_LOG_LEVEL
+      register: hindsight_verify_level_after
+      changed_when: false
+
+    - name: Look for the access key in the container
+      ansible.builtin.command: podman exec hindsight printenv HINDSIGHT_CP_ACCESS_KEY
+      register: hindsight_verify_key_unset
+      changed_when: false
+      failed_when: false
+
+    - name: Count access key lines in the env file
+      ansible.builtin.command: grep -c '^HINDSIGHT_CP_ACCESS_KEY=' /etc/hindsight/hindsight.env
+      register: hindsight_verify_keylines
+      changed_when: false
+      failed_when: hindsight_verify_keylines.rc > 1
+
+    - name: Container was recreated, worker id and pass-through survived, access key is gone
+      ansible.builtin.assert:
+        that:
+          - hindsight_verify_id_after.stdout != hindsight_verify_id_before.stdout
+          - hindsight_verify_worker_after.stdout == inventory_hostname
+          - hindsight_verify_level_after.stdout == 'debug'
+          - hindsight_verify_key_unset.rc == 1
+          - hindsight_verify_keylines.stdout == '0'
