@@ -1,0 +1,105 @@
+---
+# The linter reports a false key-order warning at the last line of a multi-play file; the noqa below silences it.
+# Expected values are literals, not recomputed from the role's expressions.
+# One play per case so role defaults are never carried over between cases.
+- name: Image reference and disk threshold, full default
+  hosts: all
+  gather_facts: false
+  vars:
+    hindsight_llm_provider: none
+  tasks:
+    - name: Load the role variables through its validation tasks
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        tasks_from: validate
+        public: true
+
+    - name: The full tag has no suffix and the threshold is about 15 GB
+      ansible.builtin.assert:
+        that:
+          - __hindsight_image_ref == "ghcr.io/vectorize-io/hindsight:1.0.0"
+          - hindsight_min_free_disk_mb | int == 15360
+
+- name: Image reference and disk threshold, full explicit
+  hosts: all
+  gather_facts: false
+  vars:
+    hindsight_llm_provider: none
+    hindsight_image_variant: full
+    hindsight_image_tag: 1.2.3
+  tasks:
+    - name: Load the role variables through its validation tasks
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        tasks_from: validate
+        public: true
+
+    - name: The full tag has no suffix
+      ansible.builtin.assert:
+        that:
+          - __hindsight_image_ref == "ghcr.io/vectorize-io/hindsight:1.2.3"
+          - hindsight_min_free_disk_mb | int == 15360
+
+- name: Image reference and disk threshold, slim
+  hosts: all
+  gather_facts: false
+  vars:
+    hindsight_llm_provider: none
+    hindsight_image_variant: slim
+    hindsight_image_tag: 1.2.3
+    hindsight_extra_env:
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: openai
+  tasks:
+    - name: Load the role variables through its validation tasks
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        tasks_from: validate
+        public: true
+
+    - name: The slim tag carries the suffix and the threshold is about 2 GB
+      ansible.builtin.assert:
+        that:
+          - __hindsight_image_ref == "ghcr.io/vectorize-io/hindsight:1.2.3-slim"
+          - hindsight_min_free_disk_mb | int == 2048
+
+- name: Image reference and disk threshold, custom repository
+  hosts: all
+  gather_facts: false
+  vars:
+    hindsight_llm_provider: none
+    hindsight_image: registry.example/hs
+    hindsight_image_tag: 0.10.3
+  tasks:
+    - name: Load the role variables through its validation tasks
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        tasks_from: validate
+        public: true
+
+    - name: The repository is honoured
+      ansible.builtin.assert:
+        that:
+          - __hindsight_image_ref == "registry.example/hs:0.10.3"
+
+- name: Image reference and disk threshold, explicit threshold wins
+  hosts: all
+  gather_facts: false
+  vars:
+    hindsight_llm_provider: none
+    hindsight_min_free_disk_mb: 0
+  tasks:
+    - name: Load the role variables through its validation tasks
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+        tasks_from: validate
+        public: true
+
+    - name: The explicit threshold overrides the variant default
+      ansible.builtin.assert:
+        that:
+          - (hindsight_min_free_disk_mb | int) == 0
+        quiet: true
+
+    - name: Report the resolved reference
+      ansible.builtin.debug:
+        var: __hindsight_image_ref  # noqa: key-order[task]

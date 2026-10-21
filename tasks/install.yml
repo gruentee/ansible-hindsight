@@ -12,6 +12,13 @@
   failed_when: __hindsight_image_check.rc not in [0, 1]
   check_mode: false
 
+- name: Check free disk space before the pull
+  ansible.builtin.include_tasks:
+    file: preflight.yml
+  when:
+    - __hindsight_image_check.rc == 1
+    - (hindsight_min_free_disk_mb | int) > 0
+
 # The image tag is part of the unit file, so a tag change restarts the service through the unit task.
 - name: Pull the Hindsight image when absent
   ansible.builtin.command: podman pull {{ __hindsight_image_ref | quote }}
