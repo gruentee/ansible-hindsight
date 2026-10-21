@@ -15,7 +15,7 @@
   when: __hindsight_unit is changed
 
 # A restart on a stopped service starts it, so a first run does not start the service twice.
-- name: Apply pending restarts before the final state is enforced
+- name: Apply pending restarts before the final state is enforced  # noqa: no-free-form
   ansible.builtin.meta: flush_handlers
 
 - name: Enable and start the Hindsight service

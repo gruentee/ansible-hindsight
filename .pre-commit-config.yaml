@@ -23,9 +23,11 @@ repos:
       # --strict: the tool reports most rules as warnings, which exit 0 and would block nothing.
       # role-name is skipped: the tool checks the directory name (ansible-hindsight), but the
       # role's Galaxy name is "hindsight" (meta/main.yml), so the warning is a false positive.
+      # yaml[colons] is skipped: the tool flags colons inside values (ubuntu:26.04, URLs); yamllint
+      # already checks real colon spacing.
       - id: ansible-lint-but-fast
         name: ansible-lint-but-fast (production profile)
-        entry: ansible-rust-lint --profile production --strict --skip-list role-name
+        entry: ansible-rust-lint --profile production --strict --skip-list role-name --skip-list "yaml[colons]"
         language: system
         pass_filenames: false
         files: \.(ya?ml)$
