@@ -1,0 +1,72 @@
+---
+- name: Validation rules reject invalid input and name the offending variable
+  hosts: all
+  gather_facts: false
+  vars:
+    # Each case sets variables on top of the role defaults. The failure message must contain `names`.
+    failing_cases:
+      - {title: openai without a key, vars: {hindsight_llm_provider: openai}, names: hindsight_llm_api_key}
+      - {title: empty provider, vars: {hindsight_llm_provider: ""}, names: hindsight_llm_provider}
+      - {title: api port zero, vars: {hindsight_api_port: 0}, names: hindsight_api_port}
+      - {title: api port too high, vars: {hindsight_api_port: 65536}, names: hindsight_api_port}
+      - {title: api port not a number, vars: {hindsight_api_port: abc}, names: hindsight_api_port}
+      - {title: cp port too high, vars: {hindsight_cp_port: 70000}, names: hindsight_cp_port}
+      - {title: cp port not a number, vars: {hindsight_cp_port: "80x"}, names: hindsight_cp_port}
+      - {title: database url scheme, vars: {hindsight_database_url: "mysql://db/x"}, names: hindsight_database_url}
+      - {title: empty image tag, vars: {hindsight_image_tag: ""}, names: hindsight_image_tag}
+      - {title: relative host data path, vars: {hindsight_data_host_path: data/hindsight}, names: hindsight_data_host_path}
+      - {title: slim without embeddings provider, vars: {hindsight_image_variant: slim}, names: HINDSIGHT_API_EMBEDDINGS_PROVIDER}
+      - title: slim with local embeddings provider
+        vars:
+          hindsight_image_variant: slim
+          hindsight_extra_env: {HINDSIGHT_API_EMBEDDINGS_PROVIDER: local}
+        names: HINDSIGHT_API_EMBEDDINGS_PROVIDER
+    passing_cases:
+      - {title: defaults with provider none, vars: {}}
+      - {title: ollama without a key, vars: {hindsight_llm_provider: ollama}}
+      - {title: lmstudio without a key, vars: {hindsight_llm_provider: lmstudio}}
+      - {title: openai with a key, vars: {hindsight_llm_provider: openai, hindsight_llm_api_key: k}}
+      - {title: boundary ports, vars: {hindsight_api_port: 1, hindsight_cp_port: 65535}}
+      - {title: postgresql url, vars: {hindsight_database_url: "postgresql://u@h/d"}}
+      - {title: postgres url, vars: {hindsight_database_url: "postgres://u@h/d"}}
+      - {title: absolute host data path, vars: {hindsight_data_host_path: /srv/hindsight}}
+      - title: slim with remote embeddings provider
+        vars:
+          hindsight_image_variant: slim
+          hindsight_extra_env: {HINDSIGHT_API_EMBEDDINGS_PROVIDER: openai}
+    warning_tags: ["latest", "1.0", "1", "1.0.0-rc1"]
+  tasks:
+    - name: Invalid input fails with a message naming the variable
+      ansible.builtin.include_tasks:
+        file: failing_case.yml
+      loop: "{{ failing_cases }}"
+      loop_control:
+        loop_var: case
+        label: "{{ case.title }}"
+
+    - name: Valid input passes
+      ansible.builtin.include_tasks:
+        file: passing_case.yml
+      loop: "{{ passing_cases }}"
+      loop_control:
+        loop_var: case
+        label: "{{ case.title }}"
+
+    - name: A floating tag warns and does not fail
+      ansible.builtin.include_tasks:
+        file: warning_case.yml
+      loop: "{{ warning_tags }}"
+      loop_control:
+        loop_var: tag
+
+    - name: An exact X.Y.Z tag validates
+      ansible.builtin.include_tasks:
+        file: run_validation.yml
+      vars:
+        case:
+          title: exact tag
+          vars: {hindsight_image_tag: 1.2.3}
+
+    - name: Confirm no warning was recorded for the exact tag
+      ansible.builtin.assert:
+        that: __hindsight_validation_warnings | length == 0

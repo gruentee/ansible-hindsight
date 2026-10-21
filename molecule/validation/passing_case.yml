@@ -1,0 +1,4 @@
+---
+- name: "Case {{ case.title }}"
+  ansible.builtin.include_tasks:
+    file: run_validation.yml

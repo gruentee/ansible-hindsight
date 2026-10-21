@@ -1,0 +1,19 @@
+---
+# Validation scenario (#12): negative tests for the up-front input checks.
+# Runs the role's validation tasks on the controller; no container, no image pull.
+driver:
+  name: default
+  options:
+    managed: false
+platforms:
+  - name: localhost
+provisioner:
+  name: ansible
+  inventory:
+    host_vars:
+      localhost:
+        ansible_connection: local
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+scenario:
+  test_sequence:
+    - converge

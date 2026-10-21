@@ -5,6 +5,10 @@
     state: present
   when: hindsight_manage_runtime | bool
 
+- name: Detect an upgrade and refuse a disallowed downgrade
+  ansible.builtin.include_tasks:
+    file: upgrade.yml
+
 - name: Check whether the Hindsight image is present locally
   ansible.builtin.command: podman image exists {{ __hindsight_image_ref | quote }}
   register: __hindsight_image_check
@@ -12,8 +16,23 @@
   failed_when: __hindsight_image_check.rc not in [0, 1]
   check_mode: false
 
+- name: Check free disk space before the pull
+  ansible.builtin.include_tasks:
+    file: preflight.yml
+  when:
+    - __hindsight_image_check.rc == 1
+    - (hindsight_min_free_disk_mb | int) > 0
+
 # The image tag is part of the unit file, so a tag change restarts the service through the unit task.
 - name: Pull the Hindsight image when absent
   ansible.builtin.command: podman pull {{ __hindsight_image_ref | quote }}
   when: __hindsight_image_check.rc == 1
   changed_when: true  # noqa: key-order[task]
+
+# The service is stopped here and restarted on the new image by the unit task in service.yml.
+- name: Back up the Embedded Database before the upgrade
+  ansible.builtin.include_tasks:
+    file: backup.yml
+  when:  # noqa: key-order[task]
+    - __hindsight_upgrade | bool
+    - hindsight_backup_before_upgrade | bool

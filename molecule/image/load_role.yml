@@ -1,0 +1,6 @@
+---
+# Runs the role's validation tasks so its defaults and variables are loaded with the case's overrides.
+- name: Load the role
+  ansible.builtin.include_role:
+    name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+    tasks_from: validate
