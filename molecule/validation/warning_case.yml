@@ -1,0 +1,15 @@
+---
+- name: "Validate tag {{ tag }}"
+  ansible.builtin.include_tasks:
+    file: run_validation.yml
+  vars:
+    case:
+      title: "tag {{ tag }}"
+      vars:
+        hindsight_image_tag: "{{ tag }}"
+
+- name: "Tag {{ tag }} produced a warning naming hindsight_image_tag"
+  ansible.builtin.assert:
+    that:
+      - __hindsight_validation_warnings | length == 1
+      - "'hindsight_image_tag' in __hindsight_validation_warnings[0]"
