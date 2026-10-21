@@ -1,0 +1,22 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Run a trivial container with rootful Podman
+      ansible.builtin.command: podman run --rm docker.io/library/alpine:3 echo nested-ok
+      register: spike_run
+      changed_when: false
+
+    - name: Nested container produced its output
+      ansible.builtin.assert:
+        that: spike_run.stdout == 'nested-ok'
+
+    - name: Read the storage driver Podman selected
+      ansible.builtin.command: podman info --format '{{ '{{' }}.Store.GraphDriverName{{ '}}' }}'
+      register: spike_driver
+      changed_when: false
+
+    - name: Nested Podman uses the overlay storage driver
+      ansible.builtin.assert:
+        that: spike_driver.stdout == 'overlay'
