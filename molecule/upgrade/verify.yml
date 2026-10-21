@@ -173,6 +173,6 @@
 
         - name: Nothing was written and nothing was stopped
           ansible.builtin.assert:
-            that:  # noqa: key-order[task]
+            that:
               - not verify_external_dir.stat.exists
               - verify_external_active.stdout == 'active'

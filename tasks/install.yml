@@ -58,13 +58,13 @@
 - name: Pull the Hindsight image when absent
   ansible.builtin.command: podman pull {{ __hindsight_image_ref | quote }}
   when: __hindsight_image_check.rc != 0
-  changed_when: true  # noqa: key-order[task]
+  changed_when: true
 
 # The service is stopped here and restarted on the new image by the unit task in service.yml.
 - name: Back up the Embedded Database before the upgrade
   ansible.builtin.include_tasks:
     file: backup.yml
-  when:  # noqa: key-order[task]
+  when:
     - __hindsight_upgrade | bool
     - hindsight_backup_before_upgrade | bool
 
@@ -73,6 +73,6 @@
 - name: Record the unfinished upgrade
   ansible.builtin.include_tasks:
     file: pending.yml
-  when:  # noqa: key-order[task]
+  when:
     - __hindsight_upgrade | bool
     - not ansible_check_mode

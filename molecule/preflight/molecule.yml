@@ -4,7 +4,7 @@
 driver:
   name: docker
 platforms:
-  - name: ubuntu-2604-preflight
+  - name: ubuntu2604-preflight
     image: ubuntu:26.04
     dockerfile: Dockerfile.j2
     pre_build_image: false

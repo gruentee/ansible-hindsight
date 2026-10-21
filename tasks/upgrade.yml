@@ -54,11 +54,11 @@
     __hindsight_resume: true
     __hindsight_old_ref: "{{ (__hindsight_pending_slurp.content | b64decode | from_json).old_ref }}"
     __hindsight_backup_path: "{{ (__hindsight_pending_slurp.content | b64decode | from_json).backup_path }}"
-  when:  # noqa: key-order[task]
+  when:
     - __hindsight_pending_slurp.content is defined
     - not (__hindsight_upgrade | bool)
 
 - name: Note that no unfinished upgrade is being resumed
   ansible.builtin.set_fact:
     __hindsight_resume: false
-  when: __hindsight_resume is not defined  # noqa: key-order[task]
+  when: __hindsight_resume is not defined

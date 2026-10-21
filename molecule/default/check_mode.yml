@@ -69,4 +69,4 @@
           - check_files.results | selectattr('stat.exists') | list | length == 0
         fail_msg: Check mode installed Podman or created the env file or the unit on a fresh platform.
         quiet: true
-      when: check_unit_before.stat.exists is false  # noqa: key-order[task]
+      when: check_unit_before.stat.exists is false

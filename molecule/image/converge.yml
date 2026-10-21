@@ -1,5 +1,4 @@
 ---
-# The linter reports a false key-order warning at the last line of a multi-play file; the noqa below silences it.
 # Expected values are literals, not recomputed from the role's expressions.
 # One play per case so role defaults are never carried over between cases.
 - name: Image reference and disk threshold, full default
@@ -99,7 +98,3 @@
         that:
           - (hindsight_min_free_disk_mb | int) == 0
         quiet: true
-
-    - name: Report the resolved reference
-      ansible.builtin.debug:
-        var: __hindsight_image_ref  # noqa: key-order[task]

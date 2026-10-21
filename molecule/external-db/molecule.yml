@@ -6,7 +6,7 @@ driver:
 # The nested Podman container cannot resolve docker network names, so the database
 # gets a fixed address on a dedicated network.
 platforms:
-  - name: extdb-ubuntu
+  - name: ubuntu2604-external-db
     image: ubuntu:26.04
     dockerfile: Dockerfile.j2
     pre_build_image: false
@@ -22,7 +22,7 @@ platforms:
       - name: hindsight-extdb-net
     groups:
       - target
-  - name: extdb-pgvector
+  - name: pgvector-external-db
     image: pgvector/pgvector:pg16
     pre_build_image: true
     command: ""

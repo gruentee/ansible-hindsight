@@ -25,17 +25,29 @@ repos:
         pass_filenames: false
         files: ^(README\.md|defaults/main\.yml|scripts/check-readme\.sh)$
 
+      # Mechanical conventions: commented defaults, hindsight_ prefix reserved, platform names.
+      - id: check-conventions
+        name: repo conventions (docs/molecule.md)
+        entry: scripts/check-conventions.sh
+        language: system
+        pass_filenames: false
+        files: ^(defaults/main\.yml|molecule/.*\.yml|scripts/check-conventions\.sh)$
+
       # The linter has no releases or hooks manifest. Build it with
       # scripts/install-lint-tool.sh (commit pinned in .ansible-lint-but-fast-rev).
       # The crate is called ansible-lint; the binary it installs is ansible-rust-lint.
       # --strict: the tool reports most rules as warnings, which exit 0 and would block nothing.
       # role-name is skipped: the tool checks the directory name (ansible-hindsight), but the
       # role's Galaxy name is "hindsight" (meta/main.yml), so the warning is a false positive.
+      # key-order[task] is skipped: it fires on the wrong line, or on the first variable of a set_fact,
+      # when a task with register and failed_when: false is followed by a task with a list `when`
+      # (minimal repro in docs/molecule.md). It also ignores some # noqa comments, so a skip is the
+      # only fix that holds. Remove the skip once the tool is fixed.
       # yaml[colons] is skipped: the tool flags colons inside values (ubuntu:26.04, URLs); yamllint
       # already checks real colon spacing.
       - id: ansible-lint-but-fast
         name: ansible-lint-but-fast (production profile)
-        entry: ansible-rust-lint --profile production --strict --skip-list role-name --skip-list "yaml[colons]"
+        entry: ansible-rust-lint --profile production --strict --skip-list role-name --skip-list "yaml[colons]" --skip-list "key-order[task]"
         language: system
         pass_filenames: false
         files: \.(ya?ml)$
