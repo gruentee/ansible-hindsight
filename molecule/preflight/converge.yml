@@ -1,0 +1,62 @@
+---
+- name: Disk preflight runs before the pull
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Too little free space fails the run before the pull
+      block:
+        - name: Apply the role with an unreachable disk threshold
+          ansible.builtin.include_role:
+            name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+          vars:
+            hindsight_min_free_disk_mb: 999999999
+        - name: The run must not get past the preflight
+          ansible.builtin.fail:
+            msg: Role passed the disk preflight but should have failed
+      rescue:
+        - name: The message names the variable and the failure is not a pull error
+          ansible.builtin.assert:
+            that:
+              - "'should have failed' not in ansible_failed_result.msg"
+              - "'hindsight_min_free_disk_mb' in ansible_failed_result.msg"
+              - "'free' in ansible_failed_result.msg"
+
+    - name: Nothing was pulled
+      ansible.builtin.command: podman image exists ghcr.io/vectorize-io/hindsight:0.0.0-molecule-nonexistent
+      register: preflight_image
+      changed_when: false
+      failed_when: preflight_image.rc != 1
+
+    - name: A threshold of 0 skips the check and reaches the pull
+      block:
+        - name: Apply the role with the check disabled
+          ansible.builtin.include_role:
+            name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+          vars:
+            hindsight_min_free_disk_mb: 0
+        - name: The run must not succeed with a nonexistent tag
+          ansible.builtin.fail:
+            msg: Pull of a nonexistent tag succeeded
+      rescue:
+        - name: The failure comes from the pull, not from the preflight
+          ansible.builtin.assert:
+            that:
+              - "'hindsight_min_free_disk_mb' not in (ansible_failed_result.msg | default(''))"
+              - "'podman pull' in (ansible_failed_result.cmd | default([]) | join(' '))"
+
+    - name: Enough free space reaches the pull as well
+      block:
+        - name: Apply the role with a small threshold
+          ansible.builtin.include_role:
+            name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+          vars:
+            hindsight_min_free_disk_mb: 1
+        - name: The run must not succeed with a nonexistent tag
+          ansible.builtin.fail:
+            msg: Pull of a nonexistent tag succeeded
+      rescue:
+        - name: The failure comes from the pull
+          ansible.builtin.assert:
+            that:
+              - "'hindsight_min_free_disk_mb' not in (ansible_failed_result.msg | default(''))"
+              - "'podman pull' in (ansible_failed_result.cmd | default([]) | join(' '))"
