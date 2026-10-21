@@ -1,0 +1,17 @@
+---
+# Internal constants. Not part of the public interface; do not override.
+
+__hindsight_service_name: hindsight
+__hindsight_container_name: hindsight
+# Container-side ports are fixed; only the host ports are configurable.
+__hindsight_api_container_port: 8888
+__hindsight_cp_container_port: 9999
+# Where the image keeps the Embedded Database, and the user that owns it.
+__hindsight_data_mount_path: /home/hindsight/.pg0
+__hindsight_container_uid: 1000
+__hindsight_container_gid: 1000
+# Providers that work without an API key.
+__hindsight_keyless_providers:
+  - none
+  - ollama
+  - lmstudio

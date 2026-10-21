@@ -1,0 +1,76 @@
+---
+# Public variable contract for the hindsight role.
+# Every public variable has the hindsight_ prefix and is documented here and in the README.
+# Variables marked "secret" must come from Ansible Vault and are never printed.
+
+# --- LLM ---------------------------------------------------------------------
+
+# LLM provider. No role default: an empty value is rejected by validation so the
+# choice is always explicit. Use "none" to run without an LLM.
+hindsight_llm_provider: ""
+# Model name. Empty means the upstream default applies (omitted from the env file).
+hindsight_llm_model: ""
+# secret. Required unless the provider is none, ollama or lmstudio.
+hindsight_llm_api_key: ""
+# Custom endpoint, e.g. for Ollama or an OpenAI-compatible server. Empty means omitted.
+hindsight_llm_base_url: ""
+
+# --- Control Plane and network -----------------------------------------------
+
+# secret. Optional access key for the Control Plane web UI. Empty means no login gate.
+hindsight_cp_access_key: ""
+# Host address the published ports bind to.
+hindsight_bind_address: 127.0.0.1
+# Host ports. The container ports are fixed.
+hindsight_api_port: 8888
+hindsight_cp_port: 9999
+
+# --- Database and storage ----------------------------------------------------
+
+# External Database URL. Empty means the Embedded Database is used.
+hindsight_database_url: ""
+# Named container volume for the Embedded Database.
+hindsight_data_volume: hindsight-data
+# Host directory to use instead of the named volume. Empty means use the named volume.
+hindsight_data_host_path: ""
+
+# --- Service -----------------------------------------------------------------
+
+# Root-only environment file holding the settings and secrets above.
+hindsight_env_file: /etc/hindsight/hindsight.env
+# Stable worker identity, so in-flight tasks survive container recreation.
+hindsight_worker_id: "{{ inventory_hostname }}"
+# Install Podman from the distribution repositories when it is missing.
+hindsight_manage_runtime: true
+# Seconds systemd waits for the first start (model initialisation can take about 300).
+hindsight_start_timeout: 420
+# Seconds systemd waits for a graceful stop.
+hindsight_stop_timeout: 120
+# Shared memory size passed to the container.
+hindsight_shm_size: 1g
+hindsight_service_enabled: true
+hindsight_service_state: started
+# secret. Extra HINDSIGHT_* settings written to the env file. Role-managed variables win on conflict.
+hindsight_extra_env: {}
+
+# --- Image -------------------------------------------------------------------
+
+hindsight_image: ghcr.io/vectorize-io/hindsight
+# Bare version. The role appends the slim suffix itself. Pin an exact X.Y.Z.
+hindsight_image_tag: "1.0.0"
+# "full" bundles the local embedding and reranker models; "slim" needs external providers.
+hindsight_image_variant: full
+# Minimum free space (MB) where Podman stores images before a pull. 0 disables the check.
+hindsight_min_free_disk_mb: "{{ 2048 if hindsight_image_variant == 'slim' else 15360 }}"
+
+# --- Upgrades and backup -----------------------------------------------------
+
+# Allow installing a lower version than the one running. Upstream documents no downgrade path.
+hindsight_allow_downgrade: false
+# Archive the Embedded Database before a tag change. Has no effect with an External Database.
+hindsight_backup_before_upgrade: true
+hindsight_backup_dir: /var/backups/hindsight
+# Number of newest backup archives to keep.
+hindsight_backup_keep: 3
+# Remove the previous Hindsight image after a successful upgrade (Hindsight repository only).
+hindsight_prune_old_images: true

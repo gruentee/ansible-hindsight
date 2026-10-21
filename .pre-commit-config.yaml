@@ -1,0 +1,31 @@
+---
+# Run by prek (https://prek.j178.dev). `repo: builtin` is prek-only and needs no network.
+# CI runs the same definition with `prek run --all-files`.
+repos:
+  - repo: builtin
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  - repo: local
+    hooks:
+      - id: yamllint
+        name: yamllint
+        entry: yamllint
+        language: system
+        types: [yaml]
+
+      # The linter has no releases or hooks manifest. Build it with
+      # scripts/install-lint-tool.sh (commit pinned in .ansible-lint-but-fast-rev).
+      # The crate is called ansible-lint; the binary it installs is ansible-rust-lint.
+      # --strict: the tool reports most rules as warnings, which exit 0 and would block nothing.
+      # role-name is skipped: the tool checks the directory name (ansible-hindsight), but the
+      # role's Galaxy name is "hindsight" (meta/main.yml), so the warning is a false positive.
+      - id: ansible-lint-but-fast
+        name: ansible-lint-but-fast (production profile)
+        entry: ansible-rust-lint --profile production --strict --skip-list role-name
+        language: system
+        pass_filenames: false
+        files: \.(ya?ml)$
