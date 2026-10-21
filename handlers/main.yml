@@ -1,3 +1,6 @@
 ---
-# Handlers are added together with the tasks that notify them.
-[]
+- name: Restart hindsight
+  ansible.builtin.systemd:
+    name: "{{ __hindsight_service_name }}"
+    state: restarted
+  when: hindsight_service_state == 'started'

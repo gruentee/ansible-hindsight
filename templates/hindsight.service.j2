@@ -1,0 +1,24 @@
+{{ ansible_managed | comment }}
+[Unit]
+Description=Hindsight agent memory engine
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec={{ hindsight_start_timeout }}
+TimeoutStopSec={{ hindsight_stop_timeout }}
+ExecStart=/usr/bin/podman run --rm --replace \
+  --name {{ __hindsight_container_name }} \
+  --env-file {{ hindsight_env_file }} \
+  --shm-size={{ hindsight_shm_size }} \
+  -p {{ hindsight_bind_address }}:{{ hindsight_api_port }}:{{ __hindsight_api_container_port }} \
+  -p {{ hindsight_bind_address }}:{{ hindsight_cp_port }}:{{ __hindsight_cp_container_port }} \
+  -v {{ hindsight_data_volume }}:{{ __hindsight_data_mount_path }} \
+  {{ __hindsight_image_ref }}
+ExecStop=/usr/bin/podman stop --ignore -t {{ hindsight_stop_timeout }} {{ __hindsight_container_name }}
+
+[Install]
+WantedBy=multi-user.target

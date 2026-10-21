@@ -1,0 +1,19 @@
+---
+- name: Install Podman from the distribution repositories
+  ansible.builtin.package:
+    name: podman
+    state: present
+  when: hindsight_manage_runtime | bool
+
+- name: Check whether the Hindsight image is present locally
+  ansible.builtin.command: podman image exists {{ __hindsight_image_ref | quote }}
+  register: __hindsight_image_check
+  changed_when: false
+  failed_when: __hindsight_image_check.rc not in [0, 1]
+  check_mode: false
+
+# The image tag is part of the unit file, so a tag change restarts the service through the unit task.
+- name: Pull the Hindsight image when absent
+  ansible.builtin.command: podman pull {{ __hindsight_image_ref | quote }}
+  when: __hindsight_image_check.rc == 1
+  changed_when: true

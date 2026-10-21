@@ -10,6 +10,8 @@ __hindsight_cp_container_port: 9999
 __hindsight_data_mount_path: /home/hindsight/.pg0
 __hindsight_container_uid: 1000
 __hindsight_container_gid: 1000
+# Full image reference. Slim images use the -slim tag suffix.
+__hindsight_image_ref: "{{ hindsight_image }}:{{ hindsight_image_tag }}{{ '-slim' if hindsight_image_variant == 'slim' else '' }}"
 # Providers that work without an API key.
 __hindsight_keyless_providers:
   - none
