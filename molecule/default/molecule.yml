@@ -55,6 +55,8 @@ platforms:
       - /tmp
 provisioner:
   name: ansible
+  playbooks:
+    side_effect: check_mode.yml
   inventory:
     group_vars:
       all:
@@ -63,3 +65,15 @@ provisioner:
         hindsight_min_free_disk_mb: 0
 verifier:
   name: ansible
+scenario:
+  # side_effect runs the check-mode guarantees (#17): before the first converge (fresh platform)
+  # and after idempotence (converged platform).
+  test_sequence:
+    - destroy
+    - create
+    - side_effect
+    - converge
+    - idempotence
+    - side_effect
+    - verify
+    - destroy

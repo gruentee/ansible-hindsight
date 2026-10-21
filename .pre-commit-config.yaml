@@ -17,6 +17,14 @@ repos:
         language: system
         types: [yaml]
 
+      # Every variable in defaults/main.yml is in the README; the example playbook parses.
+      - id: check-readme
+        name: README matches defaults and example playbook parses
+        entry: scripts/check-readme.sh
+        language: system
+        pass_filenames: false
+        files: ^(README\.md|defaults/main\.yml|scripts/check-readme\.sh)$
+
       # The linter has no releases or hooks manifest. Build it with
       # scripts/install-lint-tool.sh (commit pinned in .ansible-lint-but-fast-rev).
       # The crate is called ansible-lint; the binary it installs is ansible-rust-lint.

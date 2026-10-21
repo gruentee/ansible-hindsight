@@ -62,6 +62,6 @@ jobs:
           pipx install molecule
           pipx inject molecule "molecule-plugins[docker]"
 
-      # Check-mode runs will be added to the scenario by ticket #17.
-      - name: Converge, idempotence, verify
+      # The scenario also runs the check-mode guarantees (#17) before and after the converge.
+      - name: Check mode, converge, idempotence, check mode, verify
         run: molecule test -s default
