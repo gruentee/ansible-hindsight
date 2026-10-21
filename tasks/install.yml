@@ -1,7 +1,21 @@
 ---
+- name: Gather the OS facts when the play did not
+  ansible.builtin.setup:
+    gather_subset: min
+  when: ansible_facts['os_family'] is not defined
+
+- name: Load the OS-family variables
+  ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', __hindsight_os_vars) }}"
+  vars:
+    __hindsight_os_vars:
+      files:
+        - "{{ ansible_facts['os_family'] }}.yml"
+      paths:
+        - "{{ role_path }}/vars"
+
 - name: Install Podman from the distribution repositories
   ansible.builtin.package:
-    name: podman
+    name: "{{ __hindsight_runtime_packages }}"
     state: present
   register: __hindsight_podman_install
   # Check mode cannot bootstrap python3-apt on a fresh Debian family host, so it cannot preview the install.
@@ -9,6 +23,16 @@
     - __hindsight_podman_install is failed
     - not (ansible_check_mode and 'python3-apt must be installed' in (__hindsight_podman_install.msg | default('')))
   when: hindsight_manage_runtime | bool
+
+# A freshly installed D-Bus package is not started by itself in every environment; crun needs the bus.
+- name: Start the services the container runtime depends on
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+  loop: "{{ __hindsight_runtime_services }}"
+  when: hindsight_manage_runtime | bool
+  # In check mode the package may not be installed yet, so the unit may not exist.
+  ignore_errors: "{{ ansible_check_mode }}"  # noqa: ignore-errors
 
 - name: Detect an upgrade and refuse a disallowed downgrade
   ansible.builtin.include_tasks:
