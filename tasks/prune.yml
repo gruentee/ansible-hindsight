@@ -1,0 +1,14 @@
+---
+# Remove the previous Hindsight image after a successful upgrade.
+# Removes exactly the old reference, and only when it belongs to the Hindsight repository.
+- name: Remove the previous Hindsight image
+  ansible.builtin.command: podman rmi {{ __hindsight_old_ref | quote }}
+  register: __hindsight_prune
+  changed_when: __hindsight_prune.rc == 0
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - hindsight_prune_old_images | bool
+    - __hindsight_upgrade | bool
+    - __hindsight_old_ref is match('^' ~ (hindsight_image | regex_escape) ~ ':')
+    - __hindsight_old_ref != __hindsight_image_ref

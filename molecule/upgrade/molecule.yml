@@ -1,0 +1,36 @@
+---
+# Upgrade scenario (#19): converge an older real release, then the default tag.
+# Peak disk is large (two full images in nested Podman), so run it alone and destroy it afterwards.
+driver:
+  name: docker
+platforms:
+  - name: ubuntu-2604-upgrade
+    image: ubuntu:26.04
+    dockerfile: Dockerfile.j2
+    pre_build_image: false
+    privileged: true
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        hindsight_llm_provider: none
+        hindsight_min_free_disk_mb: 0
+        hindsight_backup_keep: 2
+verifier:
+  name: ansible
+# No idempotence step: the converge deliberately moves between versions.
+scenario:
+  test_sequence:
+    - destroy
+    - create
+    - converge
+    - verify
+    - destroy
