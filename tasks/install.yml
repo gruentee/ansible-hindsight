@@ -32,6 +32,7 @@
   loop: "{{ __hindsight_runtime_services }}"
   when: hindsight_manage_runtime | bool
   # In check mode the package may not be installed yet, so the unit may not exist.
+  # Outside check mode the expression is false, so real failures still fail the run.
   ignore_errors: "{{ ansible_check_mode }}"  # noqa: ignore-errors
 
 - name: Detect an upgrade and refuse a disallowed downgrade
@@ -66,3 +67,12 @@
   when:  # noqa: key-order[task]
     - __hindsight_upgrade | bool
     - hindsight_backup_before_upgrade | bool
+
+# Persisted until the Hindsight Server is ready on the new image, so a rerun after a failed readiness
+# check still prunes the old image and can name the backup.
+- name: Record the unfinished upgrade
+  ansible.builtin.include_tasks:
+    file: pending.yml
+  when:  # noqa: key-order[task]
+    - __hindsight_upgrade | bool
+    - not ansible_check_mode

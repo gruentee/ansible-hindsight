@@ -5,7 +5,7 @@
 driver:
   name: docker
 platforms:
-  - name: hs16-debian12
+  - name: debian12-default
     image: debian:12
     dockerfile: Dockerfile.j2
     pre_build_image: false
@@ -17,7 +17,7 @@ platforms:
     tmpfs:
       - /run
       - /tmp
-  - name: hs16-ubuntu2204
+  - name: ubuntu2204-default
     image: ubuntu:22.04
     dockerfile: Dockerfile.j2
     pre_build_image: false
@@ -29,7 +29,7 @@ platforms:
     tmpfs:
       - /run
       - /tmp
-  - name: hs16-ubuntu2604
+  - name: ubuntu2604-default
     image: ubuntu:26.04
     dockerfile: Dockerfile.j2
     pre_build_image: false
@@ -41,7 +41,7 @@ platforms:
     tmpfs:
       - /run
       - /tmp
-  - name: hs16-rocky9
+  - name: rocky9-default
     image: rockylinux:9
     dockerfile: Dockerfile.j2
     pre_build_image: false

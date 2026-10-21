@@ -70,6 +70,34 @@
               - "'/var/backups/hindsight/hindsight-' in ansible_failed_result.msg"
               - "'-' ~ default_tag ~ '.tar' in ansible_failed_result.msg"
 
+    - name: The unfinished upgrade is recorded
+      ansible.builtin.stat:
+        path: /var/backups/hindsight/pending-upgrade.json
+      register: verify_pending
+
+    - name: A rerun after the failed readiness still names the backup
+      block:
+        - name: Rerun the same failing configuration
+          ansible.builtin.include_role:
+            name: "{{ role_dir }}"
+          vars:
+            hindsight_image_tag: 99.0.0
+            hindsight_start_timeout: 5
+            hindsight_extra_env:
+              HINDSIGHT_API_PORT: "8889"
+
+        - name: The rerun must not succeed
+          ansible.builtin.fail:
+            msg: Rerun succeeded although the Hindsight Server cannot answer
+      rescue:
+        - name: The state file exists and the message still names the backup
+          ansible.builtin.assert:
+            that:
+              - verify_pending.stat.exists
+              - "'should not succeed' not in ansible_failed_result.msg"
+              - "'did not answer' in ansible_failed_result.msg"
+              - "'/var/backups/hindsight/hindsight-' in ansible_failed_result.msg"
+
     - name: The newest archive is the one from the failed upgrade
       ansible.builtin.find:
         paths: /var/backups/hindsight

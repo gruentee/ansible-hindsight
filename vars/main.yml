@@ -12,6 +12,10 @@ __hindsight_container_uid: 1000
 __hindsight_container_gid: 1000
 # Full image reference. Slim images use the -slim tag suffix.
 __hindsight_image_ref: "{{ hindsight_image }}:{{ hindsight_image_tag }}{{ '-slim' if hindsight_image_variant == 'slim' else '' }}"
+# State of an upgrade that has not reached readiness yet; removed once the Hindsight Server is ready.
+__hindsight_pending_file: "{{ hindsight_backup_dir }}/pending-upgrade.json"
+# Bind address as it appears in a URL or a -p argument: IPv6 literals need brackets.
+__hindsight_bind_host: "{{ '[' ~ hindsight_bind_address ~ ']' if ':' in (hindsight_bind_address | string) else hindsight_bind_address }}"
 # Providers that work without an API key.
 __hindsight_keyless_providers:
   - none

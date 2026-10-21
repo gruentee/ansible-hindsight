@@ -13,51 +13,51 @@
     - name: Stat the host directory
       ansible.builtin.stat:
         path: "{{ host_path }}"
-      register: hindsight_verify_dir
+      register: verify_dir
 
     - name: The host directory is owned by 1000:1000
       ansible.builtin.assert:
         that:
-          - hindsight_verify_dir.stat.isdir
-          - hindsight_verify_dir.stat.uid == 1000
-          - hindsight_verify_dir.stat.gid == 1000
+          - verify_dir.stat.isdir
+          - verify_dir.stat.uid == 1000
+          - verify_dir.stat.gid == 1000
 
     - name: Inspect the container mounts
       ansible.builtin.command: podman inspect hindsight
-      register: hindsight_verify_mounts
+      register: verify_mounts
       changed_when: false
 
     - name: The host directory is bind-mounted and no named volume is used
       ansible.builtin.assert:
         that:
-          - "(hindsight_verify_mounts.stdout | from_json)[0].Mounts | map(attribute='Type') | list == ['bind']"
-          - "(hindsight_verify_mounts.stdout | from_json)[0].Mounts[0].Source == host_path"
+          - "(verify_mounts.stdout | from_json)[0].Mounts | map(attribute='Type') | list == ['bind']"
+          - "(verify_mounts.stdout | from_json)[0].Mounts[0].Source == host_path"
 
     - name: Read the unit file
       ansible.builtin.slurp:
         src: /etc/systemd/system/hindsight.service
-      register: hindsight_verify_unit
+      register: verify_unit
 
     - name: The host path is mounted with the private SELinux label
       ansible.builtin.assert:
-        that: "'/srv/hindsight-data:/home/hindsight/.pg0:Z' in (hindsight_verify_unit.content | b64decode)"
+        that: "'/srv/hindsight-data:/home/hindsight/.pg0:Z' in (verify_unit.content | b64decode)"
 
     - name: Stat the SELinux config
       ansible.builtin.stat:
         path: /etc/selinux/config
-      register: hindsight_verify_selinux_config
+      register: verify_selinux_config
 
     - name: Read the SELinux config
       ansible.builtin.slurp:
         src: /etc/selinux/config
-      register: hindsight_verify_selinux
-      when: hindsight_verify_selinux_config.stat.exists
+      register: verify_selinux
+      when: verify_selinux_config.stat.exists
 
     # The role must not change the SELinux mode. Where the image ships a config, it stays enforcing.
     - name: The role left the SELinux mode alone
       ansible.builtin.assert:
-        that: "(hindsight_verify_selinux.content | b64decode) is search('(?m)^SELINUX=enforcing')"
-      when: hindsight_verify_selinux_config.stat.exists
+        that: "(verify_selinux.content | b64decode) is search('(?m)^SELINUX=enforcing')"
+      when: verify_selinux_config.stat.exists
 
     - name: Write a marker into the data directory from inside the container
       ansible.builtin.command: podman exec hindsight touch /home/hindsight/.pg0/persist-marker
@@ -65,7 +65,7 @@
 
     - name: Read the container ID before recreation
       ansible.builtin.command: podman inspect hindsight
-      register: hindsight_verify_id_before
+      register: verify_id_before
       changed_when: false
 
     - name: Restart the service to recreate the container  # noqa: no-handler
@@ -77,14 +77,14 @@
       ansible.builtin.uri:
         url: http://127.0.0.1:8888/health/ready
         status_code: 200
-      register: hindsight_verify_ready_again
-      until: hindsight_verify_ready_again.status == 200
+      register: verify_ready_again
+      until: verify_ready_again.status == 200
       retries: 60
       delay: 5
 
     - name: Read the container ID after recreation
       ansible.builtin.command: podman inspect hindsight
-      register: hindsight_verify_id_after
+      register: verify_id_after
       changed_when: false
 
     - name: Read the marker through the new container
@@ -93,7 +93,7 @@
 
     - name: The container was recreated
       ansible.builtin.assert:
-        that: (hindsight_verify_id_after.stdout | from_json)[0].Id != (hindsight_verify_id_before.stdout | from_json)[0].Id
+        that: (verify_id_after.stdout | from_json)[0].Id != (verify_id_before.stdout | from_json)[0].Id
 
     - name: Apply the role with the host path emptied
       ansible.builtin.include_role:
@@ -103,15 +103,15 @@
 
     - name: Inspect the container mounts after emptying the path
       ansible.builtin.command: podman inspect hindsight
-      register: hindsight_verify_mounts_volume
+      register: verify_mounts_volume
       changed_when: false
 
     - name: The named volume is used
       ansible.builtin.assert:
         that:
-          - "'\"Type\": \"volume\"' in hindsight_verify_mounts_volume.stdout"
-          - "'\"Name\": \"hindsight-data\"' in hindsight_verify_mounts_volume.stdout"
-          - "'\"Type\": \"bind\"' not in hindsight_verify_mounts_volume.stdout"
+          - "'\"Type\": \"volume\"' in verify_mounts_volume.stdout"
+          - "'\"Name\": \"hindsight-data\"' in verify_mounts_volume.stdout"
+          - "'\"Type\": \"bind\"' not in verify_mounts_volume.stdout"
 
     - name: Service is ready on the named volume
       ansible.builtin.uri:

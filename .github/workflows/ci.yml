@@ -61,4 +61,4 @@ jobs:
 
       # The scenario also runs the check-mode guarantees (#17) before and after the converge.
       - name: Check mode, converge, idempotence, check mode, verify
-        run: molecule test -s default
+        run: molecule test -s default --platform-name ubuntu2604-default
