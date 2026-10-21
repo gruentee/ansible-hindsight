@@ -1,0 +1,6 @@
+---
+# RHEL family (Rocky, Alma, RHEL). python3-libselinux lets Ansible modules act on an SELinux host.
+__hindsight_runtime_packages:
+  - podman
+  - python3-libselinux
+__hindsight_runtime_services: []

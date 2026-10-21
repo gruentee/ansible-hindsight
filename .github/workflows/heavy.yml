@@ -1,0 +1,124 @@
+---
+# Heavy tier (#21): every scenario that has a docker platform, one job per scenario
+# (and per distribution for the multi-platform scenarios). Not run on pull requests;
+# ci.yml covers those.
+#
+# Disk assumptions
+# - A standard ubuntu-latest runner has tens of GB free after the free-disk step.
+#   A job holds one full Hindsight image (about 9 GB amd64) in nested Podman, so
+#   default and host-path run one distribution per job (molecule --platform-name).
+# - The upgrade scenario converges an older release and then the default tag, so two
+#   full images coexist. Its peak is about 18 GB. That can exceed a standard runner.
+#   Set the repository variable HEAVY_UPGRADE_RUNNER to a larger runner label
+#   (Settings > Actions > Runners > larger runners, for example "ubuntu-latest-8-cores")
+#   with at least 150 GB of disk. Without it the job uses ubuntu-latest, and a disk
+#   failure there means the larger runner is required.
+# - HEAVY_RUNNER overrides the runner for every other docker job in the same way.
+name: Heavy
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  push:
+    tags:
+      - "*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: heavy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Multi-platform scenarios: one distribution per job to keep disk manageable.
+  platforms:
+    name: ${{ matrix.scenario }} (${{ matrix.platform }})
+    runs-on: ${{ vars.HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {scenario: default, platform: debian12, platform_name: debian12-default}
+          - {scenario: default, platform: ubuntu2204, platform_name: ubuntu2204-default}
+          - {scenario: default, platform: ubuntu2604, platform_name: ubuntu2604-default}
+          - {scenario: default, platform: rocky9, platform_name: rocky9-default}
+          - {scenario: host-path, platform: debian12, platform_name: debian12-host-path}
+          - {scenario: host-path, platform: ubuntu2204, platform_name: ubuntu2204-host-path}
+          - {scenario: host-path, platform: ubuntu2604, platform_name: ubuntu2604-host-path}
+          - {scenario: host-path, platform: rocky9, platform_name: rocky9-host-path}
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Free disk space
+        uses: ./.github/actions/free-disk
+
+      - name: Install Molecule
+        run: |
+          pipx install molecule
+          pipx inject molecule "molecule-plugins[docker]"
+
+      - name: Molecule test
+        run: molecule test -s ${{ matrix.scenario }} --platform-name ${{ matrix.platform_name }}
+
+  # Single-platform scenarios with a docker platform.
+  single:
+    name: ${{ matrix.scenario }}
+    runs-on: ${{ vars.HEAVY_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [network, external-db, preflight]
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Free disk space
+        uses: ./.github/actions/free-disk
+
+      - name: Install Molecule
+        run: |
+          pipx install molecule
+          pipx inject molecule "molecule-plugins[docker]"
+
+      - name: Molecule test
+        run: molecule test -s ${{ matrix.scenario }}
+
+  # Two full images at once (about 18 GB peak): see the disk notes at the top.
+  upgrade:
+    name: upgrade
+    runs-on: ${{ vars.HEAVY_UPGRADE_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Free disk space
+        uses: ./.github/actions/free-disk
+
+      - name: Install Molecule
+        run: |
+          pipx install molecule
+          pipx inject molecule "molecule-plugins[docker]"
+
+      - name: Molecule test
+        run: molecule test -s upgrade
+
+  # Controller-only scenarios: no container and no pull, so no free-disk step.
+  delegated:
+    name: ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [validation, image]
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Install Molecule
+        run: pipx install molecule
+
+      - name: Molecule test
+        run: molecule test -s ${{ matrix.scenario }}

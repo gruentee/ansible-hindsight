@@ -1,0 +1,27 @@
+---
+galaxy_info:
+  role_name: hindsight
+  namespace: gruentee
+  author: Constantin Kraft
+  description: Install and configure Hindsight, the agent memory engine, with Podman and systemd.
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - bookworm
+    - name: Ubuntu
+      versions:
+        - jammy
+        - resolute
+    - name: EL
+      versions:
+        - "9"
+  galaxy_tags:
+    - hindsight
+    - memory
+    - podman
+    - systemd
+    - container
+
+dependencies: []

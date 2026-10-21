@@ -1,0 +1,12 @@
+---
+# The container user is fixed at UID/GID 1000 and cannot be remapped, so the directory must match.
+- name: Create the host data directory
+  ansible.builtin.file:
+    path: "{{ hindsight_data_host_path }}"
+    state: directory
+    owner: "{{ __hindsight_container_uid }}"
+    group: "{{ __hindsight_container_gid }}"
+    mode: "0755"
+  when:
+    - hindsight_database_url == ''
+    - hindsight_data_host_path | length > 0

@@ -1,0 +1,64 @@
+---
+# Upgrade detection and the downgrade guard. Runs before the pull.
+# Sets __hindsight_resume (an earlier upgrade did not finish), __hindsight_upgrade (an installed unit runs a different image reference than requested),
+# __hindsight_old_ref (the reference the installed unit runs) and the bare old and new versions.
+- name: Check whether a Hindsight unit is already installed
+  ansible.builtin.stat:
+    path: /etc/systemd/system/{{ __hindsight_service_name }}.service
+  register: __hindsight_unit_stat
+
+- name: Read the installed Hindsight unit
+  ansible.builtin.slurp:
+    src: /etc/systemd/system/{{ __hindsight_service_name }}.service
+  register: __hindsight_unit_slurp
+  when: __hindsight_unit_stat.stat.exists
+
+- name: Work out the image reference the installed unit runs
+  ansible.builtin.set_fact:
+    __hindsight_old_ref: >-
+      {{ ((__hindsight_unit_slurp.content | b64decode)
+         | regex_findall('(?m)^\s*(' ~ (hindsight_image | regex_escape) ~ ':\S+)\s*$')
+         | first | default('')) if __hindsight_unit_stat.stat.exists else '' }}
+
+- name: Flag an upgrade when the requested image differs from the installed one
+  ansible.builtin.set_fact:
+    __hindsight_upgrade: "{{ __hindsight_old_ref | length > 0 and __hindsight_old_ref != __hindsight_image_ref }}"
+    __hindsight_old_version: "{{ __hindsight_old_ref | regex_replace('^.*:', '') | regex_replace('-slim$', '') }}"
+    __hindsight_new_version: "{{ hindsight_image_tag | string | regex_replace('-slim$', '') }}"
+
+- name: Refuse a downgrade unless it is explicitly allowed
+  ansible.builtin.assert:
+    that: not (__hindsight_new_version is version(__hindsight_old_version, '<'))
+    quiet: true
+    fail_msg: >-
+      hindsight_image_tag {{ hindsight_image_tag }} is older than the installed version {{ __hindsight_old_version }}.
+      Migrations are not reversible and upstream documents no downgrade path. Set hindsight_allow_downgrade: true
+      to proceed anyway, ideally after restoring a backup from {{ hindsight_backup_dir }}.
+  when:
+    - __hindsight_upgrade | bool
+    - not (hindsight_allow_downgrade | bool)
+    - __hindsight_old_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+    - __hindsight_new_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+
+# A previous upgrade whose readiness check failed leaves a state file. The rerun finds the unit already
+# on the new reference (no upgrade, so no second backup), but it must still prune the old image
+# and name the backup in a repeated failure message.
+- name: Look for the state of an unfinished upgrade
+  ansible.builtin.slurp:
+    src: "{{ __hindsight_pending_file }}"
+  register: __hindsight_pending_slurp
+  failed_when: false
+
+- name: Resume an unfinished upgrade
+  ansible.builtin.set_fact:
+    __hindsight_resume: true
+    __hindsight_old_ref: "{{ (__hindsight_pending_slurp.content | b64decode | from_json).old_ref }}"
+    __hindsight_backup_path: "{{ (__hindsight_pending_slurp.content | b64decode | from_json).backup_path }}"
+  when:  # noqa: key-order[task]
+    - __hindsight_pending_slurp.content is defined
+    - not (__hindsight_upgrade | bool)
+
+- name: Note that no unfinished upgrade is being resumed
+  ansible.builtin.set_fact:
+    __hindsight_resume: false
+  when: __hindsight_resume is not defined  # noqa: key-order[task]

@@ -1,0 +1,8 @@
+---
+# Debian and Ubuntu. Podman 4.3 (Debian 12) runs crun with the systemd cgroup manager, which needs
+# the system D-Bus; minimal images and hosts do not always have it.
+__hindsight_runtime_packages:
+  - podman
+  - dbus
+__hindsight_runtime_services:
+  - dbus.socket

@@ -1,0 +1,9 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: true
+  tasks:
+    # The checkout directory is not named after the Galaxy role, so include it by path.
+    - name: Apply the hindsight role
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"

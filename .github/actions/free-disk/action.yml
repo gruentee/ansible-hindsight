@@ -1,0 +1,12 @@
+---
+name: Free disk space
+description: Remove preinstalled toolchains and Docker images from the runner before large images are pulled.
+runs:
+  using: composite
+  steps:
+    - name: Free disk space
+      shell: bash
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        sudo docker image prune --all --force
+        df -h /

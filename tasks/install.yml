@@ -1,0 +1,78 @@
+---
+- name: Gather the OS facts when the play did not
+  ansible.builtin.setup:
+    gather_subset: min
+  when: ansible_facts['os_family'] is not defined
+
+- name: Load the OS-family variables
+  ansible.builtin.include_vars: "{{ lookup('ansible.builtin.first_found', __hindsight_os_vars) }}"
+  vars:
+    __hindsight_os_vars:
+      files:
+        - "{{ ansible_facts['os_family'] }}.yml"
+      paths:
+        - "{{ role_path }}/vars"
+
+- name: Install Podman from the distribution repositories
+  ansible.builtin.package:
+    name: "{{ __hindsight_runtime_packages }}"
+    state: present
+  register: __hindsight_podman_install
+  # Check mode cannot bootstrap python3-apt on a fresh Debian family host, so it cannot preview the install.
+  failed_when:
+    - __hindsight_podman_install is failed
+    - not (ansible_check_mode and 'python3-apt must be installed' in (__hindsight_podman_install.msg | default('')))
+  when: hindsight_manage_runtime | bool
+
+# A freshly installed D-Bus package is not started by itself in every environment; crun needs the bus.
+- name: Start the services the container runtime depends on
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: started
+  loop: "{{ __hindsight_runtime_services }}"
+  when: hindsight_manage_runtime | bool
+  # In check mode the package may not be installed yet, so the unit may not exist.
+  # Outside check mode the expression is false, so real failures still fail the run.
+  ignore_errors: "{{ ansible_check_mode }}"  # noqa: ignore-errors
+
+- name: Detect an upgrade and refuse a disallowed downgrade
+  ansible.builtin.include_tasks:
+    file: upgrade.yml
+
+- name: Check whether the Hindsight image is present locally
+  ansible.builtin.command: podman image exists {{ __hindsight_image_ref | quote }}
+  register: __hindsight_image_check
+  changed_when: false
+  # Podman is not installed yet in check mode on a fresh host (rc 2); treat that as "image absent".
+  failed_when: __hindsight_image_check.rc not in [0, 1] and not (ansible_check_mode and __hindsight_image_check.rc == 2)
+  check_mode: false
+
+- name: Check free disk space before the pull
+  ansible.builtin.include_tasks:
+    file: preflight.yml
+  when:
+    - __hindsight_image_check.rc == 1
+    - (hindsight_min_free_disk_mb | int) > 0
+
+# The image tag is part of the unit file, so a tag change restarts the service through the unit task.
+- name: Pull the Hindsight image when absent
+  ansible.builtin.command: podman pull {{ __hindsight_image_ref | quote }}
+  when: __hindsight_image_check.rc != 0
+  changed_when: true  # noqa: key-order[task]
+
+# The service is stopped here and restarted on the new image by the unit task in service.yml.
+- name: Back up the Embedded Database before the upgrade
+  ansible.builtin.include_tasks:
+    file: backup.yml
+  when:  # noqa: key-order[task]
+    - __hindsight_upgrade | bool
+    - hindsight_backup_before_upgrade | bool
+
+# Persisted until the Hindsight Server is ready on the new image, so a rerun after a failed readiness
+# check still prunes the old image and can name the backup.
+- name: Record the unfinished upgrade
+  ansible.builtin.include_tasks:
+    file: pending.yml
+  when:  # noqa: key-order[task]
+    - __hindsight_upgrade | bool
+    - not ansible_check_mode

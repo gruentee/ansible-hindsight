@@ -1,0 +1,67 @@
+---
+# Host-path scenario (#15, matrix #16): Embedded Database on a host directory, on Debian 12, Ubuntu 22.04, Ubuntu 26.04 and Rocky Linux 9.
+# Rootful Podman runs nested in a systemd container.
+# Platform names are unique because Docker container names are global on a shared host.
+# The platforms block follows docs/adr/0001-molecule-with-nested-podman.md.
+driver:
+  name: docker
+platforms:
+  - name: debian12-host-path
+    image: debian:12
+    dockerfile: Dockerfile.j2
+    pre_build_image: false
+    privileged: true
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+  - name: ubuntu2204-host-path
+    image: ubuntu:22.04
+    dockerfile: Dockerfile.j2
+    pre_build_image: false
+    privileged: true
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+  - name: ubuntu2604-host-path
+    image: ubuntu:26.04
+    dockerfile: Dockerfile.j2
+    pre_build_image: false
+    privileged: true
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+  - name: rocky9-host-path
+    image: rockylinux:9
+    dockerfile: Dockerfile.j2
+    pre_build_image: false
+    privileged: true
+    cgroupns_mode: host
+    command: /lib/systemd/systemd
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        hindsight_llm_provider: none
+        hindsight_cp_access_key: molecule-secret-sentinel
+        hindsight_data_host_path: /srv/hindsight-data
+        hindsight_min_free_disk_mb: 0
+verifier:
+  name: ansible

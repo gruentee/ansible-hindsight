@@ -1,0 +1,178 @@
+---
+- name: Verify the upgrade, backup and prune behaviour
+  hosts: all
+  gather_facts: false
+  vars:
+    role_dir: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+    default_tag: "{{ (lookup('ansible.builtin.file', role_dir + '/defaults/main.yml') | from_yaml).hindsight_image_tag }}"
+    repo: ghcr.io/vectorize-io/hindsight
+  tasks:
+    - name: Service is ready on the new version
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8888/health/live
+        return_content: true
+      register: verify_live
+
+    - name: Reported version is the default tag
+      ansible.builtin.assert:
+        that: verify_live.json.version == default_tag
+
+    - name: List backup archives
+      ansible.builtin.find:
+        paths: /var/backups/hindsight
+        patterns: hindsight-*.tar
+      register: verify_backups
+
+    - name: Only the configured number of archives is kept and the newest is non-empty
+      ansible.builtin.assert:
+        that:
+          - verify_backups.files | length == 2
+          - "'hindsight-20200101T000000Z-0.0.1.tar' not in (verify_backups.files | map(attribute='path') | map('basename'))"
+          - (verify_backups.files | sort(attribute='path') | last).size > 1048576
+          - "'-0.10.3.tar' in (verify_backups.files | sort(attribute='path') | last).path"
+
+    - name: List local images
+      ansible.builtin.command: podman images --format '{% raw %}{{ .Repository }}:{{ .Tag }}{% endraw %}'
+      register: verify_images
+      changed_when: false
+
+    - name: The old image is gone, the new one and unrelated images remain
+      ansible.builtin.assert:
+        that:
+          - (repo ~ ':0.10.3') not in verify_images.stdout_lines
+          - (repo ~ ':' ~ default_tag) in verify_images.stdout_lines
+          - "'docker.io/library/alpine:3' in verify_images.stdout_lines"
+
+    - name: Failed readiness after an upgrade names the backup
+      block:
+        - name: Tag the current image as a newer release so no pull is needed
+          ansible.builtin.command: podman tag {{ repo }}:{{ default_tag }} {{ repo }}:99.0.0
+          changed_when: true
+
+        - name: Upgrade to a configuration whose readiness endpoint never answers
+          ansible.builtin.include_role:
+            name: "{{ role_dir }}"
+          vars:
+            hindsight_image_tag: 99.0.0
+            hindsight_start_timeout: 5
+            hindsight_extra_env:
+              HINDSIGHT_API_PORT: "8889"
+
+        - name: The run must not succeed
+          ansible.builtin.fail:
+            msg: Upgrade succeeded although the Hindsight Server cannot answer
+      rescue:
+        - name: The failure message names a backup archive that exists
+          ansible.builtin.assert:
+            that:
+              - "'should not succeed' not in ansible_failed_result.msg"
+              - "'did not answer' in ansible_failed_result.msg"
+              - "'/var/backups/hindsight/hindsight-' in ansible_failed_result.msg"
+              - "'-' ~ default_tag ~ '.tar' in ansible_failed_result.msg"
+
+    - name: The unfinished upgrade is recorded
+      ansible.builtin.stat:
+        path: /var/backups/hindsight/pending-upgrade.json
+      register: verify_pending
+
+    - name: A rerun after the failed readiness still names the backup
+      block:
+        - name: Rerun the same failing configuration
+          ansible.builtin.include_role:
+            name: "{{ role_dir }}"
+          vars:
+            hindsight_image_tag: 99.0.0
+            hindsight_start_timeout: 5
+            hindsight_extra_env:
+              HINDSIGHT_API_PORT: "8889"
+
+        - name: The rerun must not succeed
+          ansible.builtin.fail:
+            msg: Rerun succeeded although the Hindsight Server cannot answer
+      rescue:
+        - name: The state file exists and the message still names the backup
+          ansible.builtin.assert:
+            that:
+              - verify_pending.stat.exists
+              - "'should not succeed' not in ansible_failed_result.msg"
+              - "'did not answer' in ansible_failed_result.msg"
+              - "'/var/backups/hindsight/hindsight-' in ansible_failed_result.msg"
+
+    - name: The newest archive is the one from the failed upgrade
+      ansible.builtin.find:
+        paths: /var/backups/hindsight
+        patterns: "*-{{ default_tag }}.tar"
+      register: verify_failed_backup
+
+    - name: That archive is non-empty and the rotation still holds
+      ansible.builtin.assert:
+        that:
+          - verify_failed_backup.files | length == 1
+          - verify_failed_backup.files[0].size > 1048576
+
+    - name: The old image is kept when the upgrade failed
+      ansible.builtin.command: podman image exists {{ repo }}:{{ default_tag }}
+      changed_when: false
+
+    - name: A downgrade is refused without hindsight_allow_downgrade
+      block:
+        - name: Go back to the older tag without permission
+          ansible.builtin.include_role:
+            name: "{{ role_dir }}"
+        - name: The run must not succeed
+          ansible.builtin.fail:
+            msg: Downgrade was not refused
+      rescue:
+        - name: The message names the variable
+          ansible.builtin.assert:
+            that:
+              - "'was not refused' not in ansible_failed_result.msg"
+              - "'hindsight_allow_downgrade' in ansible_failed_result.msg"
+
+    - name: A downgrade goes through with hindsight_allow_downgrade
+      ansible.builtin.include_role:
+        name: "{{ role_dir }}"
+      vars:
+        hindsight_allow_downgrade: true
+
+    - name: Service is ready again
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8888/health/live
+        return_content: true
+      register: verify_live_again
+
+    - name: Version is back to the default and the retagged image was pruned
+      ansible.builtin.command: podman image exists {{ repo }}:99.0.0
+      register: verify_pruned
+      changed_when: false
+      failed_when: verify_pruned.rc != 1
+
+    - name: Reported version is the default tag again
+      ansible.builtin.assert:
+        that: verify_live_again.json.version == default_tag
+
+    - name: With an External Database no backup is taken and the service is not stopped
+      block:
+        - name: Run the backup tasks against an External Database URL
+          ansible.builtin.include_role:
+            name: "{{ role_dir }}"
+            tasks_from: backup
+          vars:
+            hindsight_database_url: postgresql://user:pass@db.example.invalid:5432/hindsight
+            hindsight_backup_dir: /var/backups/hindsight-external
+
+        - name: Look for a backup directory
+          ansible.builtin.stat:
+            path: /var/backups/hindsight-external
+          register: verify_external_dir
+
+        - name: Check the service is still running
+          ansible.builtin.command: systemctl is-active hindsight.service
+          register: verify_external_active
+          changed_when: false
+
+        - name: Nothing was written and nothing was stopped
+          ansible.builtin.assert:
+            that:  # noqa: key-order[task]
+              - not verify_external_dir.stat.exists
+              - verify_external_active.stdout == 'active'

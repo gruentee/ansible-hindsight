@@ -1,0 +1,11 @@
+---
+- name: Restart hindsight
+  ansible.builtin.systemd:
+    name: "{{ __hindsight_service_name }}"
+    state: restarted
+  register: __hindsight_restart
+  # In check mode the unit file of a fresh host does not exist yet.
+  failed_when:
+    - __hindsight_restart is failed
+    - not (ansible_check_mode and 'Could not find the requested service' in (__hindsight_restart.msg | default('')))
+  when: hindsight_service_state == 'started'

@@ -1,0 +1,73 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Readiness endpoint answers on the loopback address at the default API port
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8888/health/ready
+        status_code: 200
+      register: verify_ready
+
+    - name: Stat the env file
+      ansible.builtin.stat:
+        path: /etc/hindsight/hindsight.env
+      register: verify_env
+
+    - name: Env file is mode 0600 and owned by root
+      ansible.builtin.assert:
+        that:
+          - verify_env.stat.exists
+          - verify_env.stat.mode == '0600'
+          - verify_env.stat.pw_name == 'root'
+
+    - name: Read published ports
+      ansible.builtin.command: podman port hindsight
+      register: verify_ports
+      changed_when: false
+
+    - name: Both ports are published on the loopback address only
+      ansible.builtin.assert:
+        that:
+          - "'8888/tcp -> 127.0.0.1:8888' in verify_ports.stdout"
+          - "'9999/tcp -> 127.0.0.1:9999' in verify_ports.stdout"
+          - "'0.0.0.0' not in verify_ports.stdout"
+
+    - name: Read the service main PID
+      ansible.builtin.command: systemctl show -p MainPID --value hindsight.service
+      register: verify_pid_before
+      changed_when: false
+
+    - name: Apply the role again with unchanged variables
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+
+    - name: Read the service main PID after the unchanged run
+      ansible.builtin.command: systemctl show -p MainPID --value hindsight.service
+      register: verify_pid_same
+      changed_when: false
+
+    - name: An unchanged run does not restart the service
+      ansible.builtin.assert:
+        that: verify_pid_same.stdout == verify_pid_before.stdout
+
+    - name: Apply the role with only the env file changed
+      ansible.builtin.include_role:
+        name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+      vars:
+        hindsight_extra_env:
+          HINDSIGHT_API_LOG_LEVEL: debug
+
+    - name: Read the service main PID after the env change
+      ansible.builtin.command: systemctl show -p MainPID --value hindsight.service
+      register: verify_pid_changed
+      changed_when: false
+
+    - name: Changing only the env file restarts the service
+      ansible.builtin.assert:
+        that: verify_pid_changed.stdout != verify_pid_before.stdout
+
+    - name: Service is ready again after the restart
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8888/health/ready
+        status_code: 200

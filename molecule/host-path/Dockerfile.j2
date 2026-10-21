@@ -1,0 +1,11 @@
+FROM {{ item.image }}
+{% if 'rocky' in item.image %}
+RUN dnf install -y systemd python3 sudo ca-certificates \
+    && dnf clean all
+{% else %}
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        systemd systemd-sysv python3 sudo ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+{% endif %}
+STOPSIGNAL SIGRTMIN+3

@@ -1,0 +1,87 @@
+---
+# Up-front validation: runs before anything is pulled or changed.
+# Every failure message names the offending variable.
+
+- name: Require an explicit LLM provider
+  ansible.builtin.assert:
+    that: hindsight_llm_provider | string | length > 0
+    quiet: true
+    fail_msg: >-
+      hindsight_llm_provider is empty. Set it explicitly; use "none" to run without an LLM.
+
+- name: Require an LLM API key for providers that need one
+  ansible.builtin.assert:
+    that: hindsight_llm_api_key | string | length > 0
+    quiet: true
+    fail_msg: >-
+      hindsight_llm_api_key is required when hindsight_llm_provider is "{{ hindsight_llm_provider }}".
+      Only none, ollama and lmstudio run without a key.
+  when: hindsight_llm_provider not in ['none', 'ollama', 'lmstudio']
+
+- name: Require a valid API host port
+  ansible.builtin.assert:
+    that:
+      - hindsight_api_port | string is regex('^[0-9]+$')
+      - hindsight_api_port | int >= 1
+      - hindsight_api_port | int <= 65535
+    quiet: true
+    fail_msg: "hindsight_api_port must be an integer from 1 to 65535, got '{{ hindsight_api_port }}'."
+
+- name: Require a valid CP host port
+  ansible.builtin.assert:
+    that:
+      - hindsight_cp_port | string is regex('^[0-9]+$')
+      - hindsight_cp_port | int >= 1
+      - hindsight_cp_port | int <= 65535
+    quiet: true
+    fail_msg: "hindsight_cp_port must be an integer from 1 to 65535, got '{{ hindsight_cp_port }}'."
+
+- name: Require a PostgreSQL scheme on the External Database URL
+  ansible.builtin.assert:
+    that: hindsight_database_url is match('^(postgresql|postgres)://')
+    quiet: true
+    fail_msg: hindsight_database_url must start with postgresql:// or postgres://.
+  when: hindsight_database_url | string | length > 0
+
+- name: Require an image tag
+  ansible.builtin.assert:
+    that: hindsight_image_tag | string | length > 0
+    quiet: true
+    fail_msg: hindsight_image_tag must not be empty. Pin an exact X.Y.Z version.
+
+- name: Require an absolute host data path
+  ansible.builtin.assert:
+    that: hindsight_data_host_path is match('^/')
+    quiet: true
+    fail_msg: "hindsight_data_host_path must be an absolute path, got '{{ hindsight_data_host_path }}'."
+  when: hindsight_data_host_path | string | length > 0
+
+- name: Require a known image variant
+  ansible.builtin.assert:
+    that: hindsight_image_variant in ['full', 'slim']
+    quiet: true
+    fail_msg: "hindsight_image_variant must be 'full' or 'slim', got '{{ hindsight_image_variant }}'."
+
+- name: Require a remote embeddings provider with the slim image
+  ansible.builtin.assert:
+    that:
+      - hindsight_extra_env.HINDSIGHT_API_EMBEDDINGS_PROVIDER is defined
+      - hindsight_extra_env.HINDSIGHT_API_EMBEDDINGS_PROVIDER | string | length > 0
+      - hindsight_extra_env.HINDSIGHT_API_EMBEDDINGS_PROVIDER != 'local'
+    quiet: true
+    fail_msg: >-
+      The slim image has no local embedding model. Set HINDSIGHT_API_EMBEDDINGS_PROVIDER
+      in hindsight_extra_env to a remote provider (not "local").
+  when: hindsight_image_variant == 'slim'
+
+- name: Collect a warning for a floating or non-exact image tag
+  ansible.builtin.set_fact:
+    __hindsight_validation_warnings: >-
+      {{ [] if (hindsight_image_tag | string is match('^[0-9]+\.[0-9]+\.[0-9]+$'))
+         else ['hindsight_image_tag "' ~ hindsight_image_tag ~ '" is not an exact X.Y.Z version; '
+           ~ 'a floating tag can change behaviour and migrate the database on upgrade.'] }}
+
+- name: Report validation warnings
+  ansible.builtin.debug:
+    msg: "WARNING: {{ __hindsight_validation_warnings | join(' ') }}"
+  when: __hindsight_validation_warnings | length > 0
