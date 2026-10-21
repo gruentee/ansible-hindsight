@@ -9,6 +9,6 @@
   when:
     - not ansible_check_mode
     - hindsight_prune_old_images | bool
-    - __hindsight_upgrade | bool
+    - (__hindsight_upgrade | bool) or (__hindsight_resume | bool)
     - __hindsight_old_ref is match('^' ~ (hindsight_image | regex_escape) ~ ':')
     - __hindsight_old_ref != __hindsight_image_ref

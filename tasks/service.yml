@@ -31,11 +31,13 @@
 
 - name: Wait for the Hindsight Server to become ready
   ansible.builtin.uri:
-    url: "http://{{ hindsight_bind_address }}:{{ hindsight_api_port }}/health/ready"
+    url: "http://{{ __hindsight_bind_host }}:{{ hindsight_api_port }}/health/ready"
     status_code: 200
+    timeout: 5
   register: __hindsight_ready
   until: __hindsight_ready.status | default(0) == 200
-  retries: "{{ ((hindsight_start_timeout | int) / 5) | round(0, 'ceil') | int }}"
+  # An attempt takes at most delay + timeout seconds, so the attempts add up to the start timeout.
+  retries: "{{ [((hindsight_start_timeout | int) / 10) | round(0, 'ceil') | int, 1] | max }}"
   delay: 5
   changed_when: false
   failed_when: false
@@ -44,10 +46,10 @@
 - name: Fail when the Hindsight Server did not become ready
   ansible.builtin.fail:
     msg: >-
-      Hindsight did not answer http://{{ hindsight_bind_address }}:{{ hindsight_api_port }}/health/ready
+      Hindsight did not answer http://{{ __hindsight_bind_host }}:{{ hindsight_api_port }}/health/ready
       within {{ hindsight_start_timeout }} seconds. Inspect it with:
       journalctl -u {{ __hindsight_service_name }}
-      {% if __hindsight_backup_path is defined %}
+      {% if __hindsight_backup_path | default('') | length > 0 %}
       The data was backed up before the upgrade to {{ __hindsight_backup_path }}; there is no automatic rollback.
       {% endif %}
   when:
@@ -58,3 +60,9 @@
 - name: Remove the previous Hindsight image after an upgrade
   ansible.builtin.include_tasks:
     file: prune.yml
+
+- name: Forget the unfinished upgrade
+  ansible.builtin.file:
+    path: "{{ __hindsight_pending_file }}"
+    state: absent
+  when: not ansible_check_mode

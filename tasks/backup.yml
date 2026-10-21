@@ -31,69 +31,73 @@
       changed_when: false
       failed_when: __hindsight_volume_check.rc not in [0, 1]
 
-    - name: Stop the service so the data is quiescent
-      ansible.builtin.systemd:
-        name: "{{ __hindsight_service_name }}"
-        state: stopped
-
-    - name: Set the archive path
-      ansible.builtin.set_fact:
-        __hindsight_archive: >-
-          {{ hindsight_backup_dir }}/hindsight-{{ __hindsight_backup_time.stdout }}-{{ __hindsight_old_version | default('unknown') }}.tar
-
-    - name: Archive the data host path
-      ansible.builtin.command: >-
-        tar --numeric-owner -C {{ hindsight_data_host_path | quote }} -cf {{ __hindsight_archive | quote }} .
-      changed_when: true
-      when: hindsight_data_host_path | string | length > 0
-
-    - name: Archive the data volume
-      when:
-        - hindsight_data_host_path | string | length == 0
-        - __hindsight_volume_check.rc == 0
+    # A first upgrade attempt can find no named volume yet (nothing ever wrote data); there is nothing to archive then.
+    - name: Archive the data when there is any
+      when: (hindsight_data_host_path | string | length > 0) or __hindsight_volume_check.rc == 0
       block:
-        - name: Mount the data volume
-          ansible.builtin.command: podman volume mount {{ hindsight_data_volume | quote }}
-          register: __hindsight_volume_mount
-          changed_when: true
+        - name: Stop the service so the data is quiescent
+          ansible.builtin.systemd:
+            name: "{{ __hindsight_service_name }}"
+            state: stopped
 
-        - name: Archive the mounted volume
+        - name: Set the archive path
+          ansible.builtin.set_fact:
+            __hindsight_archive: >-
+              {{ hindsight_backup_dir }}/hindsight-{{ __hindsight_backup_time.stdout }}-{{ __hindsight_old_version | default('unknown') }}.tar
+
+        - name: Archive the data host path
           ansible.builtin.command: >-
-            tar --numeric-owner -C {{ __hindsight_volume_mount.stdout | trim | quote }} -cf {{ __hindsight_archive | quote }} .
+            tar --numeric-owner -C {{ hindsight_data_host_path | quote }} -cf {{ __hindsight_archive | quote }} .
           changed_when: true
-      always:
-        - name: Unmount the data volume
-          ansible.builtin.command: podman volume unmount {{ hindsight_data_volume | quote }}
-          changed_when: false
-          failed_when: false
+          when: hindsight_data_host_path | string | length > 0
 
-    - name: Stat the archive
-      ansible.builtin.stat:
-        path: "{{ __hindsight_archive }}"
-      register: __hindsight_archive_stat
+        - name: Archive the data volume
+          when:
+            - hindsight_data_host_path | string | length == 0
+            - __hindsight_volume_check.rc == 0
+          block:
+            - name: Mount the data volume
+              ansible.builtin.command: podman volume mount {{ hindsight_data_volume | quote }}
+              register: __hindsight_volume_mount
+              changed_when: true
 
-    - name: Require a non-empty archive
-      ansible.builtin.assert:
-        that:
-          - __hindsight_archive_stat.stat.exists
-          - __hindsight_archive_stat.stat.size > 1024
-        quiet: true
-        fail_msg: "Backup archive {{ __hindsight_archive }} is missing or empty; not upgrading."
+            - name: Archive the mounted volume
+              ansible.builtin.command: >-
+                tar --numeric-owner -C {{ __hindsight_volume_mount.stdout | trim | quote }} -cf {{ __hindsight_archive | quote }} .
+              changed_when: true
+          always:
+            - name: Unmount the data volume
+              ansible.builtin.command: podman volume unmount {{ hindsight_data_volume | quote }}
+              changed_when: false
+              failed_when: false
 
-    - name: Record the backup path
-      ansible.builtin.set_fact:
-        __hindsight_backup_path: "{{ __hindsight_archive }}"
+        - name: Stat the archive
+          ansible.builtin.stat:
+            path: "{{ __hindsight_archive }}"
+          register: __hindsight_archive_stat
 
-    - name: List backup archives
-      ansible.builtin.find:
-        paths: "{{ hindsight_backup_dir }}"
-        patterns: hindsight-*.tar
-      register: __hindsight_backups
+        - name: Require a non-empty archive
+          ansible.builtin.assert:
+            that:
+              - __hindsight_archive_stat.stat.exists
+              - __hindsight_archive_stat.stat.size > 1024
+            quiet: true
+            fail_msg: "Backup archive {{ __hindsight_archive }} is missing or empty; not upgrading."
 
-    - name: Remove all but the newest backup archives
-      ansible.builtin.file:
-        path: "{{ item.path }}"
-        state: absent
-      loop: "{{ (__hindsight_backups.files | sort(attribute='path'))[:-(hindsight_backup_keep | int)] }}"
-      loop_control:
-        label: "{{ item.path }}"
+        - name: Record the backup path
+          ansible.builtin.set_fact:
+            __hindsight_backup_path: "{{ __hindsight_archive }}"
+
+        - name: List backup archives
+          ansible.builtin.find:
+            paths: "{{ hindsight_backup_dir }}"
+            patterns: hindsight-*.tar
+          register: __hindsight_backups
+
+        - name: Remove all but the newest backup archives
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          loop: "{{ (__hindsight_backups.files | sort(attribute='path'))[:-(hindsight_backup_keep | int)] }}"
+          loop_control:
+            label: "{{ item.path }}"

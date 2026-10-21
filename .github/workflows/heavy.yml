@@ -41,14 +41,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {scenario: default, platform: debian12, platform_name: hs16-debian12}
-          - {scenario: default, platform: ubuntu2204, platform_name: hs16-ubuntu2204}
-          - {scenario: default, platform: ubuntu2604, platform_name: hs16-ubuntu2604}
-          - {scenario: default, platform: rocky9, platform_name: hs16-rocky9}
-          - {scenario: host-path, platform: debian12, platform_name: hs16hp-debian12}
-          - {scenario: host-path, platform: ubuntu2204, platform_name: hs16hp-ubuntu2204}
-          - {scenario: host-path, platform: ubuntu2604, platform_name: hs16hp-ubuntu2604}
-          - {scenario: host-path, platform: rocky9, platform_name: hs16hp-rocky9}
+          - {scenario: default, platform: debian12, platform_name: debian12-default}
+          - {scenario: default, platform: ubuntu2204, platform_name: ubuntu2204-default}
+          - {scenario: default, platform: ubuntu2604, platform_name: ubuntu2604-default}
+          - {scenario: default, platform: rocky9, platform_name: rocky9-default}
+          - {scenario: host-path, platform: debian12, platform_name: debian12-host-path}
+          - {scenario: host-path, platform: ubuntu2204, platform_name: ubuntu2204-host-path}
+          - {scenario: host-path, platform: ubuntu2604, platform_name: ubuntu2604-host-path}
+          - {scenario: host-path, platform: rocky9, platform_name: rocky9-host-path}
     steps:
       - uses: actions/checkout@v4.2.2
 

@@ -1,0 +1,17 @@
+---
+# Persist the unfinished-upgrade state (old image reference and backup path) until readiness succeeds.
+- name: Create the backup directory for the state file
+  ansible.builtin.file:
+    path: "{{ hindsight_backup_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Write the state file
+  ansible.builtin.copy:
+    content: "{{ {'old_ref': __hindsight_old_ref, 'backup_path': __hindsight_backup_path | default('')} | to_json }}"
+    dest: "{{ __hindsight_pending_file }}"
+    owner: root
+    group: root
+    mode: "0600"

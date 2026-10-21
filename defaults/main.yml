@@ -48,13 +48,16 @@ hindsight_start_timeout: 420
 hindsight_stop_timeout: 120
 # Shared memory size passed to the container.
 hindsight_shm_size: 1g
+# Start the service at boot.
 hindsight_service_enabled: true
+# Desired service state: started, stopped or restarted. Readiness is awaited only for started.
 hindsight_service_state: started
 # secret. Extra HINDSIGHT_* settings written to the env file. Role-managed variables win on conflict.
 hindsight_extra_env: {}
 
 # --- Image -------------------------------------------------------------------
 
+# Image repository, without tag. The role only prunes old images of this repository.
 hindsight_image: ghcr.io/vectorize-io/hindsight
 # Bare version. The role appends the slim suffix itself. Pin an exact X.Y.Z.
 hindsight_image_tag: "1.0.0"
@@ -69,6 +72,7 @@ hindsight_min_free_disk_mb: "{{ 2048 if hindsight_image_variant == 'slim' else 1
 hindsight_allow_downgrade: false
 # Archive the Embedded Database before a tag change. Has no effect with an External Database.
 hindsight_backup_before_upgrade: true
+# Root-only directory for pre-upgrade archives and the state of an unfinished upgrade.
 hindsight_backup_dir: /var/backups/hindsight
 # Number of newest backup archives to keep.
 hindsight_backup_keep: 3
