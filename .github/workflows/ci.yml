@@ -52,10 +52,7 @@ jobs:
 
       # The full image is several GB; free runner disk before it is pulled.
       - name: Free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
-          df -h /
+        uses: ./.github/actions/free-disk
 
       - name: Install Molecule
         run: |
