@@ -1,0 +1,17 @@
+---
+# Runs only the role's validation tasks with the variables of `case.vars`.
+# Unset variables take the role's defaults, except the provider, which is "none" so the key rule stays quiet.
+- name: Run the validation tasks
+  ansible.builtin.include_role:
+    name: "{{ lookup('ansible.builtin.env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+    tasks_from: validate
+  vars:
+    hindsight_llm_provider: "{{ case.vars.hindsight_llm_provider | default('none') }}"
+    hindsight_llm_api_key: "{{ case.vars.hindsight_llm_api_key | default('') }}"
+    hindsight_api_port: "{{ case.vars.hindsight_api_port | default(8888) }}"
+    hindsight_cp_port: "{{ case.vars.hindsight_cp_port | default(9999) }}"
+    hindsight_database_url: "{{ case.vars.hindsight_database_url | default('') }}"
+    hindsight_image_tag: "{{ case.vars.hindsight_image_tag | default('1.0.0') }}"
+    hindsight_image_variant: "{{ case.vars.hindsight_image_variant | default('full') }}"
+    hindsight_data_host_path: "{{ case.vars.hindsight_data_host_path | default('') }}"
+    hindsight_extra_env: "{{ case.vars.hindsight_extra_env | default({}) }}"
